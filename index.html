@@ -1,4 +1,4 @@
-    <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -9,197 +9,165 @@
         :root {
             --apex-red: #ff4b4b;
             --bg: #0d0d0d;
-            --card-bg: #1a1a1a;
+            --card-bg: #161616;
             --accent-blue: #00d4ff;
         }
 
         body {
             background-color: var(--bg);
             color: #fff;
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-family: 'Segoe UI', sans-serif;
             margin: 0;
-            padding: 20px;
+            padding: 10px;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
+            font-size: 13px;
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 960px;
             margin: 0 auto;
         }
 
         h1 {
             text-align: center;
-            font-size: 2rem;
-            margin-bottom: 30px;
-            color: #fff;
-            text-shadow: 2px 2px #000;
+            font-size: 1.4rem;
+            margin: 10px 0;
         }
 
-        /* Зона результата */
         .result-zone {
             display: flex;
             justify-content: center;
-            align-items: flex-end;
-            gap: 15px;
-            margin-bottom: 40px;
-            padding: 20px;
-            background: radial-gradient(circle, #222 0%, #000 100%);
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #000;
             border: 2px solid var(--apex-red);
-            border-radius: 15px;
-            min-height: 250px;
-            box-shadow: 0 0 20px rgba(255, 75, 75, 0.2);
+            border-radius: 8px;
+            min-height: 120px;
         }
 
         .res-item {
             text-align: center;
-            width: 180px;
-            animation: spawn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-
-        @keyframes spawn {
-            from { opacity: 0; transform: scale(0.5); }
-            to { opacity: 1; transform: scale(1); }
+            width: 90px;
+            transition: transform 0.2s;
         }
 
         .res-item img {
             width: 100%;
-            border-bottom: 4px solid var(--apex-red);
-            filter: drop-shadow(0 0 10px rgba(255, 75, 75, 0.4));
+            border-bottom: 3px solid var(--apex-red);
+            display: block;
         }
 
         .res-name {
             background: var(--apex-red);
-            padding: 5px;
+            padding: 2px;
             font-weight: bold;
-            font-size: 14px;
+            font-size: 11px;
         }
 
-        /* Сетка игроков */
         .players-row {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
         }
 
         .player-card {
             background: var(--card-bg);
-            padding: 20px;
-            border-radius: 10px;
-            border-top: 5px solid #333;
+            padding: 10px;
+            border-radius: 6px;
+            border-top: 3px solid #333;
         }
 
         .player-name {
-            margin: 0 0 15px 0;
+            margin: 0 0 10px 0;
             color: var(--accent-blue);
-            font-size: 1.2rem;
-            border-bottom: 1px solid #333;
-            padding-bottom: 5px;
+            font-size: 1rem;
+            text-align: center;
         }
 
-        /* Группировка по ролям */
         .class-group {
-            margin-bottom: 15px;
+            margin-bottom: 8px;
         }
 
         .class-header {
-            font-size: 11px;
-            color: #888;
-            margin-bottom: 8px;
+            font-size: 9px;
+            color: #777;
+            margin-bottom: 4px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 5px;
         }
 
-        .class-icon {
-            color: var(--apex-red);
-            font-size: 14px;
-        }
 
         .legend-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(55px, 1fr));
-            gap: 6px;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 3px;
         }
 
-        /* Чекбоксы легенд */
         .legend-opt {
             position: relative;
             cursor: pointer;
             aspect-ratio: 1/1;
-            background: #000;
+            background: #222;
             border: 1px solid #333;
-            transition: 0.2s;
         }
 
         .legend-opt img {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            filter: grayscale(1) brightness(0.4);
-            transition: 0.2s;
+            filter: grayscale(1) brightness(0.3);
         }
 
-        .legend-opt input {
-            display: none;
-        }
-
-        .legend-opt:hover img {
-            filter: grayscale(0.5) brightness(0.8);
-        }
+        .legend-opt input { display: none; }
 
         .legend-opt:has(input:checked) {
             border-color: var(--apex-red);
-            transform: scale(1.05);
-            z-index: 2;
+            z-index: 1;
         }
 
         .legend-opt:has(input:checked) img {
             filter: grayscale(0) brightness(1);
         }
 
-        /* Кнопка */
         .roll-btn {
             display: block;
             width: 100%;
-            max-width: 400px;
-            margin: 40px auto;
-            padding: 20px;
+            max-width: 300px;
+            margin: 20px auto;
+            padding: 15px;
             background: var(--apex-red);
             color: white;
-            font-size: 22px;
+            font-size: 18px;
             font-weight: bold;
             border: none;
             cursor: pointer;
             clip-path: polygon(5% 0, 100% 0, 95% 100%, 0% 100%);
-            transition: 0.2s;
         }
 
-        .roll-btn:hover {
-            background: #ff2222;
-            transform: scale(1.05);
-            box-shadow: 0 0 20px rgba(255, 75, 75, 0.4);
+        .roll-btn:disabled {
+            background: #555;
+            cursor: not-allowed;
         }
 
-        .placeholder-text {
-            color: #444;
-            font-size: 1.5rem;
-            align-self: center;
-        }
+        .placeholder-text { color: #333; font-size: 1rem; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>Squad Randomizer</h1>
+    <h1>SQUAD RANDOMIZER</h1>
 
     <div id="result" class="result-zone">
-        <div class="placeholder-text">WAITING FOR SQUAD...</div>
+        <div class="placeholder-text">READY UP?</div>
     </div>
-
+    <button id="rollBtn" class="roll-btn" onclick="startRoulette()">READY UP</button>
     <div id="players-container" class="players-row"></div>
 
-    <button class="roll-btn" onclick="generateSquad()">READY UP</button>
+
 </div>
 
 <script>
@@ -216,80 +184,77 @@
             "Support": ["Lifeline", "Loba", "Gibraltar", "Newcastle", "Conduit", "Mirage"],
             "Controller": ["Caustic", "Wattson", "Rampart", "Catalyst"]
         },
-        classIcons: {
-            "Assault": "⚡",
-            "Skirmisher": "🚀",
-            "Recon": "👁",
-            "Support": "✚",
-            "Controller": "⭖"
-        }
+        classIcons: { "Assault": "⚡", "Skirmisher": "🚀", "Recon": "👁", "Support": "✚", "Controller": "⭖" }
     };
 
+    function getLegendImg(name) {
+        fileName = name.replace(/ /g, "_");
+        return encodeURI(`static/legends/Portrait_${fileName}_square.png`);
+    }
 
+    // Рендер интерфейса
     const container = document.getElementById('players-container');
-
     CONFIG.players.forEach(player => {
         let playerHtml = `<div class="player-card"><h2 class="player-name">${player.name}</h2>`;
-
         for (const [className, members] of Object.entries(CONFIG.classes)) {
-            playerHtml += `
-                <div class="class-group">
-                    <div class="class-header">
-                        <span class="class-icon">${CONFIG.classIcons[className]}</span> ${className}
-                    </div>
-                    <div class="legend-grid">`;
-
+            playerHtml += `<div class="class-group">
+                <div class="class-header"><span>${CONFIG.classIcons[className]}</span> ${className}</div>
+                <div class="legend-grid">`;
             members.forEach(name => {
-
                 const isChecked = player.legends.length === 0 || player.legends.includes(name);
-                fileName = name.replace(/ /g, "_");
                 playerHtml += `
                     <label class="legend-opt">
                         <input type="checkbox" name="${player.id}" value="${name}" ${isChecked ? 'checked' : ''}>
-                        <img src="static/legends/Portrait_${fileName}_square.png" title="${name}">
+                        <img src="${getLegendImg(name)}" title="${name}" onerror="this.src='https://via.placeholder.com/40/222/555?text=${name[0]}'">
                     </label>`;
             });
-
             playerHtml += `</div></div>`;
         }
         playerHtml += `</div>`;
         container.innerHTML += playerHtml;
     });
 
-    function generateSquad() {
+    async function startRoulette() {
+        const btn = document.getElementById('rollBtn');
         const resultZone = document.getElementById('result');
 
-        // Получаем списки выбранных героев для каждого игрока
-        const pools = CONFIG.players.map(p => {
-            return Array.from(document.querySelectorAll(`input[name="${p.id}"]:checked`)).map(i => i.value);
-        });
+        const pools = CONFIG.players.map(p =>
+            Array.from(document.querySelectorAll(`input[name="${p.id}"]:checked`)).map(i => i.value)
+        );
 
-        // Валидация
         if (pools.some(p => p.length === 0)) {
-            alert("У каждого игрока должен быть выбран хотя бы один герой!");
+            alert("Выбери хотя бы по одной легенде!");
             return;
         }
 
-        let squad = null;
-        // 500 попыток найти уникальную комбинацию
-        for (let i = 0; i < 500; i++) {
+        btn.disabled = true;
+
+        let finalSquad = null;
+        for (let j = 0; j < 500; j++) {
             let attempt = pools.map(p => p[Math.floor(Math.random() * p.length)]);
             if (new Set(attempt).size === 3) {
-                squad = attempt;
+                finalSquad = attempt;
                 break;
             }
         }
 
-        if (squad) {
-            resultZone.innerHTML = squad.map(name => `
-                <div class="res-item">
-                    <img src="static/legends/Portrait_${name}_square.png" onerror="this.src='https://via.placeholder.com/150/222/888?text=${name}'">
-                    <div class="res-name">${name}</div>
-                </div>
-            `).join('');
+        if (finalSquad) {
+            updateResultUI(finalSquad, 1);
         } else {
-            alert("Не удалось собрать уникальный отряд! Увеличьте пул героев у игроков.");
+            alert("Не удалось найти 3 разных героя!");
         }
+
+        btn.disabled = false;
+    }
+
+    function updateResultUI(squad, opacity) {
+        const resultZone = document.getElementById('result');
+        resultZone.innerHTML = squad.map(name => `
+            <div class="res-item" style="opacity: ${opacity}">
+                <img src="${getLegendImg(name)}">
+                <div class="res-name">${name}</div>
+            </div>
+        `).join('');
     }
 </script>
 
