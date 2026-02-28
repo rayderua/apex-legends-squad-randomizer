@@ -11,155 +11,136 @@
             --bg: #0d0d0d;
             --card-bg: #161616;
             --accent-blue: #00d4ff;
+            --disabled: #333;
         }
 
         body {
             background-color: var(--bg);
             color: #fff;
-            font-family: 'Segoe UI', sans-serif;
+            font-family: 'Segoe UI', Roboto, sans-serif;
             margin: 0;
-            padding: 10px;
+            padding: 5px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            font-size: 13px;
+            font-size: 12px;
+            overflow-x: hidden;
         }
 
-        .container {
-            max-width: 960px;
-            margin: 0 auto;
+        .container { max-width: 1000px; margin: 0 auto; }
+
+        /* Компактные настройки */
+        .settings-bar {
+            background: #111;
+            padding: 8px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+            border-bottom: 1px solid #333;
+            flex-wrap: wrap;
         }
 
-        h1 {
-            text-align: center;
-            font-size: 1.4rem;
-            margin: 10px 0;
+        .player-toggle-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background: #1a1a1a;
+            padding: 4px 8px;
+            border-radius: 3px;
         }
 
+        .settings-bar input[type="text"] {
+            background: #222;
+            border: 1px solid #444;
+            color: var(--accent-blue);
+            padding: 4px 8px;
+            border-radius: 2px;
+            text-transform: uppercase;
+            font-size: 10px;
+            width: 80px;
+        }
+
+        /* Зона результата */
         .result-zone {
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 20px;
-            padding: 10px;
+            gap: 8px;
+            margin-bottom: 15px;
+            padding: 8px;
             background: #000;
             border: 2px solid var(--apex-red);
-            border-radius: 8px;
-            min-height: 120px;
+            border-radius: 6px;
+            min-height: 140px;
         }
 
-        .res-item {
-            text-align: center;
-            width: 90px;
-            transition: transform 0.2s;
-        }
+        .res-item { text-align: center; width: 100px; transition: 0.1s; }
+        .res-item img { width: 100%; border-bottom: 3px solid var(--apex-red); display: block; }
+        .res-name { background: var(--apex-red); padding: 2px; font-weight: bold; font-size: 10px; white-space: nowrap; overflow: hidden; }
 
-        .res-item img {
-            width: 100%;
-            border-bottom: 3px solid var(--apex-red);
-            display: block;
-        }
-
-        .res-name {
-            background: var(--apex-red);
-            padding: 2px;
-            font-weight: bold;
-            font-size: 11px;
-        }
-
-        .players-row {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-        }
-
+        /* Сетка игроков */
+        .players-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
         .player-card {
             background: var(--card-bg);
-            padding: 10px;
-            border-radius: 6px;
+            padding: 8px;
+            border-radius: 4px;
             border-top: 3px solid #333;
+            transition: 0.3s opacity;
         }
 
-        .player-name {
-            margin: 0 0 10px 0;
+        .player-card.disabled {
+            opacity: 0.2;
+            pointer-events: none;
+            filter: grayscale(1);
+        }
+
+        .player-display-name {
+            margin: 0 0 8px 0;
             color: var(--accent-blue);
-            font-size: 1rem;
+            font-size: 0.9rem;
             text-align: center;
+            border-bottom: 1px solid #222;
         }
 
-        .class-group {
-            margin-bottom: 8px;
-        }
+        .class-group { margin-bottom: 6px; }
+        .class-header { font-size: 8px; color: #666; margin-bottom: 3px; display: flex; align-items: center; gap: 4px; }
+        .legend-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; }
 
-        .class-header {
-            font-size: 9px;
-            color: #777;
-            margin-bottom: 4px;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-
-        .legend-grid {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 3px;
-        }
-
-        .legend-opt {
-            position: relative;
-            cursor: pointer;
-            aspect-ratio: 1/1;
-            background: #222;
-            border: 1px solid #333;
-        }
-
-        .legend-opt img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            filter: grayscale(1) brightness(0.3);
-        }
-
+        .legend-opt { position: relative; cursor: pointer; aspect-ratio: 1/1; background: #111; border: 1px solid #222; }
+        .legend-opt img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) brightness(0.3); }
         .legend-opt input { display: none; }
 
-        .legend-opt:has(input:checked) {
-            border-color: var(--apex-red);
-            z-index: 1;
-        }
-
-        .legend-opt:has(input:checked) img {
-            filter: grayscale(0) brightness(1);
-        }
+        .legend-opt:has(input:checked) { border-color: var(--apex-red); z-index: 1; }
+        .legend-opt:has(input:checked) img { filter: grayscale(0) brightness(1); }
 
         .roll-btn {
-            display: block;
-            width: 100%;
-            max-width: 300px;
-            margin: 20px auto;
-            padding: 15px;
-            background: var(--apex-red);
-            color: white;
-            font-size: 18px;
-            font-weight: bold;
-            border: none;
-            cursor: pointer;
-            clip-path: polygon(5% 0, 100% 0, 95% 100%, 0% 100%);
+            display: block; width: 100%; max-width: 260px; margin: 15px auto; padding: 12px;
+            background: var(--apex-red); color: white; font-size: 16px; font-weight: bold;
+            border: none; cursor: pointer; clip-path: polygon(5% 0, 100% 0, 95% 100%, 0% 100%);
         }
-
-        .roll-btn:disabled {
-            background: #555;
-            cursor: not-allowed;
-        }
-
-        .placeholder-text { color: #333; font-size: 1rem; }
+        .roll-btn:disabled { background: #444; opacity: 0.7; }
+        .placeholder-text { color: #333; font-size: 0.9rem; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>SQUAD RANDOMIZER</h1>
+    <div class="settings-bar">
+        <div class="player-toggle-group">
+            <input type="checkbox" id="active-p1" checked onchange="togglePlayer('p1')">
+            <input type="text" id="name-p1" placeholder="P1" oninput="updateNames()">
+        </div>
+        <div class="player-toggle-group">
+            <input type="checkbox" id="active-p2" checked onchange="togglePlayer('p2')">
+            <input type="text" id="name-p2" placeholder="P2" oninput="updateNames()">
+        </div>
+        <div class="player-toggle-group">
+            <input type="checkbox" id="active-p3" checked onchange="togglePlayer('p3')">
+            <input type="text" id="name-p3" placeholder="P3" oninput="updateNames()">
+        </div>
+    </div>
 
     <div id="result" class="result-zone">
         <div class="placeholder-text">READY UP?</div>
@@ -172,11 +153,6 @@
 
 <script>
     const CONFIG = {
-        players: [
-            { id: "p1", name: "Player 1", legends: [] },
-            { id: "p2", name: "Player 2", legends: [] },
-            { id: "p3", name: "Player 3", legends: [] }
-        ],
         classes: {
             "Assault": ["Bangalore", "Ash", "Fuse", "Mad Maggie", "Ballistic"],
             "Skirmisher": ["Wraith", "Octane", "Pathfinder", "Horizon", "Valkyrie", "Revenant", "Alter"],
@@ -187,25 +163,53 @@
         classIcons: { "Assault": "⚡", "Skirmisher": "🚀", "Recon": "👁", "Support": "✚", "Controller": "⭖" }
     };
 
+    let playerNames = JSON.parse(localStorage.getItem('apex_names')) || ["P1", "P2", "P3"];
+    let activePlayers = JSON.parse(localStorage.getItem('apex_active')) || [true, true, true];
+
     function getLegendImg(name) {
         fileName = name.replace(/ /g, "_");
-        return encodeURI(`static/legends/Portrait_${fileName}_square.png`);
+        return `static/legends/Portrait_${fileName}_square.png`;
     }
 
-    // Рендер интерфейса
+    function togglePlayer(id) {
+        const idx = parseInt(id.replace('p', '')) - 1;
+        const isChecked = document.getElementById(`active-${id}`).checked;
+        activePlayers[idx] = isChecked;
+
+        const card = document.getElementById(`card-${id}`);
+        if (isChecked) card.classList.remove('disabled');
+        else card.classList.add('disabled');
+
+        localStorage.setItem('apex_active', JSON.stringify(activePlayers));
+    }
+
+    function updateNames() {
+        ["p1", "p2", "p3"].forEach((id, idx) => {
+            const val = document.getElementById(`name-${id}`).value || id.toUpperCase();
+            playerNames[idx] = val;
+            document.getElementById(`disp-${id}`).innerText = val;
+        });
+        localStorage.setItem('apex_names', JSON.stringify(playerNames));
+    }
+
     const container = document.getElementById('players-container');
-    CONFIG.players.forEach(player => {
-        let playerHtml = `<div class="player-card"><h2 class="player-name">${player.name}</h2>`;
+    ["p1", "p2", "p3"].forEach((pId, idx) => {
+        document.getElementById(`name-${pId}`).value = playerNames[idx];
+        document.getElementById(`active-${pId}`).checked = activePlayers[idx];
+
+        let playerHtml = `<div class="player-card ${activePlayers[idx] ? '' : 'disabled'}" id="card-${pId}">
+            <h2 class="player-display-name" id="disp-${pId}">${playerNames[idx]}</h2>`;
+
         for (const [className, members] of Object.entries(CONFIG.classes)) {
             playerHtml += `<div class="class-group">
                 <div class="class-header"><span>${CONFIG.classIcons[className]}</span> ${className}</div>
                 <div class="legend-grid">`;
             members.forEach(name => {
-                const isChecked = player.legends.length === 0 || player.legends.includes(name);
                 playerHtml += `
                     <label class="legend-opt">
-                        <input type="checkbox" name="${player.id}" value="${name}" ${isChecked ? 'checked' : ''}>
-                        <img src="${getLegendImg(name)}" title="${name}" onerror="this.src='https://via.placeholder.com/40/222/555?text=${name[0]}'">
+                        <input type="checkbox" name="${pId}" value="${name}" checked>
+                        <img src="${getLegendImg(name)}" title="${name}"
+                             onerror="this.onerror=null; this.src='https://via.placeholder.com/40/222/555?text=${name[0]}';">
                     </label>`;
             });
             playerHtml += `</div></div>`;
@@ -216,43 +220,38 @@
 
     async function startRoulette() {
         const btn = document.getElementById('rollBtn');
-        const resultZone = document.getElementById('result');
+        const activeIdxs = activePlayers.map((val, i) => val ? i : null).filter(v => v !== null);
 
-        const pools = CONFIG.players.map(p =>
-            Array.from(document.querySelectorAll(`input[name="${p.id}"]:checked`)).map(i => i.value)
-        );
+        if (activeIdxs.length === 0) return alert("Include at least one player!");
 
-        if (pools.some(p => p.length === 0)) {
-            alert("Выбери хотя бы по одной легенде!");
-            return;
-        }
+        const pools = activeIdxs.map(idx => {
+            const id = `p${idx + 1}`;
+            return Array.from(document.querySelectorAll(`input[name="${id}"]:checked`)).map(i => i.value);
+        });
+
+        if (pools.some(p => p.length === 0)) return alert("Active players must have heroes selected!");
 
         btn.disabled = true;
 
-        let finalSquad = null;
+        let final = null;
         for (let j = 0; j < 500; j++) {
             let attempt = pools.map(p => p[Math.floor(Math.random() * p.length)]);
-            if (new Set(attempt).size === 3) {
-                finalSquad = attempt;
-                break;
-            }
+            if (new Set(attempt).size === attempt.length) { final = attempt; break; }
         }
 
-        if (finalSquad) {
-            updateResultUI(finalSquad, 1);
-        } else {
-            alert("Не удалось найти 3 разных героя!");
-        }
+        if (final) updateResultUI(final, activeIdxs, 1);
+        else alert("Failed to assemble a unique line-up!");
 
         btn.disabled = false;
     }
 
-    function updateResultUI(squad, opacity) {
+    function updateResultUI(squad, activeIdxs, opacity) {
         const resultZone = document.getElementById('result');
-        resultZone.innerHTML = squad.map(name => `
+        resultZone.innerHTML = squad.map((name, i) => `
             <div class="res-item" style="opacity: ${opacity}">
-                <img src="${getLegendImg(name)}">
+                <img src="${getLegendImg(name)}" onerror="this.src='https://via.placeholder.com/100/222/555?text=ERR'">
                 <div class="res-name">${name}</div>
+                <div style="font-size: 7px; color: #444; margin-top: 1px;">${playerNames[activeIdxs[i]]}</div>
             </div>
         `).join('');
     }
