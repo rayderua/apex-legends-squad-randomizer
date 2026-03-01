@@ -11,7 +11,6 @@
             --bg: #0d0d0d;
             --card-bg: #161616;
             --accent-blue: #00d4ff;
-            --disabled: #333;
         }
 
         body {
@@ -22,20 +21,18 @@
             padding: 5px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            font-size: 12px;
-            overflow-x: hidden;
+            font-size: 11px;
         }
 
         .container { max-width: 1000px; margin: 0 auto; }
 
-        /* Компактные настройки */
         .settings-bar {
             background: #111;
             padding: 8px;
             margin-bottom: 10px;
             border-radius: 4px;
             display: flex;
-            gap: 15px;
+            gap: 10px;
             justify-content: center;
             align-items: center;
             border-bottom: 1px solid #333;
@@ -45,24 +42,23 @@
         .player-toggle-group {
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 4px;
             background: #1a1a1a;
-            padding: 4px 8px;
+            padding: 3px 6px;
             border-radius: 3px;
         }
 
-        .settings-bar input[type="text"] {
+        input[type="text"] {
             background: #222;
             border: 1px solid #444;
             color: var(--accent-blue);
-            padding: 4px 8px;
+            padding: 4px 6px;
             border-radius: 2px;
-            text-transform: uppercase;
             font-size: 10px;
-            width: 80px;
         }
 
-        /* Зона результата */
+        #webhook-url { width: 200px; text-transform: none; border-color: #555; }
+
         .result-zone {
             display: flex;
             justify-content: center;
@@ -76,33 +72,14 @@
             min-height: 140px;
         }
 
-        .res-item { text-align: center; width: 100px; transition: 0.1s; }
+        .res-item { text-align: center; width: 100px; }
         .res-item img { width: 100%; border-bottom: 3px solid var(--apex-red); display: block; }
-        .res-name { background: var(--apex-red); padding: 2px; font-weight: bold; font-size: 10px; white-space: nowrap; overflow: hidden; }
+        .res-name { background: var(--apex-red); padding: 2px; font-weight: bold; font-size: 10px; }
 
-        /* Сетка игроков */
         .players-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-        .player-card {
-            background: var(--card-bg);
-            padding: 8px;
-            border-radius: 4px;
-            border-top: 3px solid #333;
-            transition: 0.3s opacity;
-        }
-
-        .player-card.disabled {
-            opacity: 0.2;
-            pointer-events: none;
-            filter: grayscale(1);
-        }
-
-        .player-display-name {
-            margin: 0 0 8px 0;
-            color: var(--accent-blue);
-            font-size: 0.9rem;
-            text-align: center;
-            border-bottom: 1px solid #222;
-        }
+        .player-card { background: var(--card-bg); padding: 8px; border-radius: 4px; border-top: 3px solid #333; transition: 0.3s; }
+        .player-card.disabled { opacity: 0.15; pointer-events: none; filter: grayscale(1); }
+        .player-display-name { margin: 0 0 8px 0; color: var(--accent-blue); font-size: 0.9rem; text-align: center; border-bottom: 1px solid #222; }
 
         .class-group { margin-bottom: 6px; }
         .class-header { font-size: 8px; color: #666; margin-bottom: 3px; display: flex; align-items: center; gap: 4px; }
@@ -111,16 +88,22 @@
         .legend-opt { position: relative; cursor: pointer; aspect-ratio: 1/1; background: #111; border: 1px solid #222; }
         .legend-opt img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) brightness(0.3); }
         .legend-opt input { display: none; }
-
         .legend-opt:has(input:checked) { border-color: var(--apex-red); z-index: 1; }
         .legend-opt:has(input:checked) img { filter: grayscale(0) brightness(1); }
 
+        .btn-group { display: flex; justify-content: center; gap: 10px; margin: 15px 0; }
         .roll-btn {
-            display: block; width: 100%; max-width: 260px; margin: 15px auto; padding: 12px;
-            background: var(--apex-red); color: white; font-size: 16px; font-weight: bold;
-            border: none; cursor: pointer; clip-path: polygon(5% 0, 100% 0, 95% 100%, 0% 100%);
+            width: 260px; padding: 12px; background: var(--apex-red); color: white;
+            font-size: 16px; font-weight: bold; border: none; cursor: pointer;
+            clip-path: polygon(5% 0, 100% 0, 95% 100%, 0% 100%);
         }
-        .roll-btn:disabled { background: #444; opacity: 0.7; }
+        .discord-btn {
+            width: 180px; padding: 12px; background: #5865F2; color: white;
+            font-size: 12px; font-weight: bold; border: none; cursor: pointer;
+            clip-path: polygon(5% 0, 100% 0, 95% 100%, 0% 100%);
+            display: none;
+        }
+        .roll-btn:disabled, .discord-btn:disabled { background: #444; opacity: 0.7; }
         .placeholder-text { color: #333; font-size: 0.9rem; }
     </style>
 </head>
@@ -140,15 +123,19 @@
             <input type="checkbox" id="active-p3" checked onchange="togglePlayer('p3')">
             <input type="text" id="name-p3" placeholder="P3" oninput="updateNames()">
         </div>
+        <input type="text" id="webhook-url" placeholder="Discord Webhook URL" oninput="saveWebhook()">
     </div>
 
     <div id="result" class="result-zone">
         <div class="placeholder-text">READY UP?</div>
     </div>
-    <button id="rollBtn" class="roll-btn" onclick="startRoulette()">READY UP</button>
+
+    <div class="btn-group">
+        <button id="rollBtn" class="roll-btn" onclick="startRoulette()">RANDOMIZE</button>
+        <button id="discordBtn" class="discord-btn" onclick="sendToDiscord()">SEND TO DISCORD</button>
+    </div>
+
     <div id="players-container" class="players-row"></div>
-
-
 </div>
 
 <script>
@@ -160,101 +147,129 @@
             "Support": ["Gibraltar", "Lifeline", "Mirage", "Loba", "Newcastle", "Conduit"],
             "Controller": ["Caustic", "Wattson", "Rampart", "Catalyst"],
         },
-
         classIcons: { "Assault": "⚡", "Skirmisher": "🚀", "Recon": "👁", "Support": "✚", "Controller": "⭖" }
     };
 
     let playerNames = JSON.parse(localStorage.getItem('apex_names')) || ["P1", "P2", "P3"];
     let activePlayers = JSON.parse(localStorage.getItem('apex_active')) || [true, true, true];
+    let lastSquad = [];
+    let lastActiveIdxs = [];
 
     function getLegendImg(name) {
         fileName = name.replace(/ /g, "_");
         return `static/legends/Portrait_${fileName}_square.png`;
     }
 
+    function saveWebhook() {
+        localStorage.setItem('apex_webhook', document.getElementById('webhook-url').value);
+    }
+
     function togglePlayer(id) {
-        const idx = parseInt(id.replace('p', '')) - 1;
-        const isChecked = document.getElementById(`active-${id}`).checked;
-        activePlayers[idx] = isChecked;
-
-        const card = document.getElementById(`card-${id}`);
-        if (isChecked) card.classList.remove('disabled');
-        else card.classList.add('disabled');
-
+        const idx = parseInt(id.slice(-1)) - 1;
+        activePlayers[idx] = document.getElementById(`active-${id}`).checked;
+        document.getElementById(`card-${id}`).classList.toggle('disabled', !activePlayers[idx]);
         localStorage.setItem('apex_active', JSON.stringify(activePlayers));
     }
 
     function updateNames() {
-        ["p1", "p2", "p3"].forEach((id, idx) => {
-            const val = document.getElementById(`name-${id}`).value || id.toUpperCase();
-            playerNames[idx] = val;
-            document.getElementById(`disp-${id}`).innerText = val;
+        ["p1", "p2", "p3"].forEach((id, i) => {
+            playerNames[i] = document.getElementById(`name-${id}`).value || id.toUpperCase();
+            document.getElementById(`disp-${id}`).innerText = playerNames[i];
         });
+
         localStorage.setItem('apex_names', JSON.stringify(playerNames));
     }
 
+    document.getElementById('webhook-url').value = localStorage.getItem('apex_webhook') || "";
+
     const container = document.getElementById('players-container');
-    ["p1", "p2", "p3"].forEach((pId, idx) => {
-        document.getElementById(`name-${pId}`).value = playerNames[idx];
-        document.getElementById(`active-${pId}`).checked = activePlayers[idx];
 
-        let playerHtml = `<div class="player-card ${activePlayers[idx] ? '' : 'disabled'}" id="card-${pId}">
-            <h2 class="player-display-name" id="disp-${pId}">${playerNames[idx]}</h2>`;
-
-        for (const [className, members] of Object.entries(CONFIG.classes)) {
-            playerHtml += `<div class="class-group">
-                <div class="class-header"><span>${CONFIG.classIcons[className]}</span> ${className}</div>
-                <div class="legend-grid">`;
-            members.forEach(name => {
-                playerHtml += `
-                    <label class="legend-opt">
-                        <input type="checkbox" name="${pId}" value="${name}" checked>
-                        <img src="${getLegendImg(name)}" title="${name}"
-                             onerror="this.onerror=null; this.src='https://via.placeholder.com/40/222/555?text=${name[0]}';">
-                    </label>`;
-            });
-            playerHtml += `</div></div>`;
+    ["p1", "p2", "p3"].forEach((id, i) => {
+        document.getElementById(`name-${id}`).value = playerNames[i];
+        document.getElementById(`active-${id}`).checked = activePlayers[i];
+        let html = `<div class="player-card ${activePlayers[i] ? '' : 'disabled'}" id="card-${id}"><h2 class="player-display-name" id="disp-${id}">${playerNames[i]}</h2>`;
+        for (const [cls, members] of Object.entries(CONFIG.classes)) {
+            html += `<div class="class-group"><div class="class-header"><span>${CONFIG.classIcons[cls]}</span> ${cls}</div><div class="legend-grid">`;
+            members.forEach(m => html += `<label class="legend-opt"><input type="checkbox" name="${id}" value="${m}" checked><img src="${getLegendImg(m)}" title="${m}"></label>`);
+            html += `</div></div>`;
         }
-        playerHtml += `</div>`;
-        container.innerHTML += playerHtml;
+        container.innerHTML += html + `</div>`;
     });
 
     async function startRoulette() {
         const btn = document.getElementById('rollBtn');
-        const activeIdxs = activePlayers.map((val, i) => val ? i : null).filter(v => v !== null);
+        const discBtn = document.getElementById('discordBtn');
+        lastActiveIdxs = activePlayers.map((v, i) => v ? i : null).filter(v => v !== null);
+        if (!lastActiveIdxs.length) return alert("Choose at least one player!");
 
-        if (activeIdxs.length === 0) return alert("Include at least one player!");
-
-        const pools = activeIdxs.map(idx => {
-            const id = `p${idx + 1}`;
-            return Array.from(document.querySelectorAll(`input[name="${id}"]:checked`)).map(i => i.value);
-        });
-
-        if (pools.some(p => p.length === 0)) return alert("Active players must have heroes selected!");
+        const pools = lastActiveIdxs.map(idx => Array.from(document.querySelectorAll(`input[name="p${idx+1}"]:checked`)).map(i => i.value));
+        if (pools.some(p => !p.length)) return alert("Choose at least one legend!");
 
         btn.disabled = true;
+        discBtn.style.display = 'none';
 
         let final = null;
         for (let j = 0; j < 500; j++) {
-            let attempt = pools.map(p => p[Math.floor(Math.random() * p.length)]);
+            let attempt = pools.map(p => p[Math.floor(Math.random()*p.length)]);
             if (new Set(attempt).size === attempt.length) { final = attempt; break; }
         }
 
-        if (final) updateResultUI(final, activeIdxs, 1);
-        else alert("Failed to assemble a unique line-up!");
+        if (final) {
+            lastSquad = final;
+            updateResultUI(final, lastActiveIdxs, 1);
+            discBtn.style.display = 'block';
+        }
 
         btn.disabled = false;
     }
 
-    function updateResultUI(squad, activeIdxs, opacity) {
-        const resultZone = document.getElementById('result');
-        resultZone.innerHTML = squad.map((name, i) => `
-            <div class="res-item" style="opacity: ${opacity}">
-                <img src="${getLegendImg(name)}" onerror="this.src='https://via.placeholder.com/100/222/555?text=ERR'">
-                <div class="res-name">${name}</div>
-                <div style="font-size: 7px; color: #444; margin-top: 1px;">${playerNames[activeIdxs[i]]}</div>
-            </div>
-        `).join('');
+    function updateResultUI(sq, idxs, op) {
+        document.getElementById('result').innerHTML = sq.map((n, i) => `
+            <div class="res-item" style="opacity: ${op}">
+                <img src="${getLegendImg(n)}">
+                <div class="res-name">${n}</div>
+                <div style="font-size: 7px; color: #444; margin-top: 1px;">${playerNames[idxs[i]]}</div>
+            </div>`).join('');
+    }
+
+    function getAbsoluteImgUrl(name) {
+        const baseUrl = window.location.href.split('#')[0].split('?')[0];
+        const cleanBase = baseUrl.endsWith('/') ? baseUrl : baseUrl.substring(0, baseUrl.lastIndexOf('/') + 1);
+        return `${cleanBase}${getLegendImg(name)}`;
+    }
+
+    async function sendToDiscord() {
+        const url = document.getElementById('webhook-url').value;
+        if (!url) return alert("Insert discord webhook URL!");
+
+        const btn = document.getElementById('discordBtn');
+        btn.disabled = true;
+
+       const embeds = lastSquad.map((legendName, i) => ({
+            title: playerNames[lastActiveIdxs[i]],
+            description: `Selected Legend: **${legendName}**`,
+            color: 16730955,
+            thumbnail: {
+                url: getAbsoluteImgUrl(legendName)
+            }
+        }));
+
+        const payload = {
+            username: "Apex Squad Bot",
+            content: "🚀 **NEW TEAM HAS BEEN FORMED!**",
+            embeds: embeds
+        };
+
+        try {
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (resp.ok) alert("The composition has been sent to Discord!");
+            else alert("Error Discord: " + resp.status);
+        } catch (e) { alert("Network error!"); }
+        btn.disabled = false;
     }
 </script>
 
