@@ -91,11 +91,17 @@
             </div>`).join('');
     }
 
-    function getAbsoluteImgUrl(name) {
+    function getAbsoluteUrl() {
         const baseUrl = window.location.href.split('#')[0].split('?')[0];
         const cleanBase = baseUrl.endsWith('/') ? baseUrl : baseUrl.substring(0, baseUrl.lastIndexOf('/') + 1);
-        return `${cleanBase}${getLegendImg(name)}`;
+        return `${cleanBase}`;
     }
+
+    function getAbsoluteImgUrl(name) {
+        return `${getAbsoluteUrl()}${getLegendImg(name)}`;
+    }
+
+
 
     async function sendToDiscord() {
         const url = document.getElementById('webhook-url').value;
@@ -112,10 +118,12 @@
                 url: getAbsoluteImgUrl(legendName)
             }
         }));
+        const avatar_url = getAbsoluteUrl()
 
         const payload = {
             username: "Apex Squad Bot",
             content: "🚀 **NEW TEAM HAS BEEN FORMED!**",
+            avatar_url: getAbsoluteUrl() + "static/images/ApexIcon.png",
             embeds: embeds
         };
 
