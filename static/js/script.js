@@ -101,6 +101,25 @@
         return `${getAbsoluteUrl()}${getLegendImg(name)}`;
     }
 
+    function generateVisualGrid(selectedLegend) {
+        const row1Classes = ["Assault", "Skirmisher", ];
+        const row2Classes = ["Recon", "Support", "Controller"];
+
+        const buildRow = (classList) => {
+            return classList.map(cls => {
+                const members = CONFIG.classes[cls];
+                const icons = members.map(legend => (legend === selectedLegend ? "🟩" : "✖️"));
+
+                return icons.join("");
+            }).join("⬛");
+        };
+        const s_indent = "⬛⬛⬛";
+        const e_indent = "⬛⬛⬛";
+        const line1 = s_indent + buildRow(row1Classes) + e_indent;
+        const line2 = buildRow(row2Classes);
+
+        return `\`\`\`\n${line1}\n${line2}\n\`\`\``;
+    }
 
 
     async function sendToDiscord() {
@@ -112,7 +131,7 @@
 
        const embeds = lastSquad.map((legendName, i) => ({
             title: playerNames[lastActiveIdxs[i]],
-            description: `Selected Legend: **${legendName}**`,
+            description: `Selected Legend: **${legendName}**\n${generateVisualGrid(legendName)}`,
             color: 16730955,
             thumbnail: {
                 url: getAbsoluteImgUrl(legendName)
