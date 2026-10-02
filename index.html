@@ -5,7 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Apex Squad Randomizer</title>
     <meta name="referrer" content="no-referrer">
-    <link rel="stylesheet" href="static/css/style.css">
+    <meta http-equiv="Cache-Control" content="no-cache">
+    <script>
+        // Уникальный параметр к каждому запросу -> браузер всегда качает свежие JS/CSS
+        window.ASSET_VER = Date.now();
+        document.write('<link rel="stylesheet" href="static/css/style.css?v=' + ASSET_VER + '">');
+    </script>
 </head>
 <body>
 
@@ -23,6 +28,11 @@
             <input type="checkbox" id="active-p3" checked onchange="togglePlayer('p3')">
             <input type="text" id="name-p3" placeholder="P3" oninput="updateNames()">
         </div>
+        <div class="player-toggle-group" title="Сколько легенд всегда остаются в рандоме. Из N отмеченных подряд будет N-reserve разных">
+            <label for="history-reserve">Reserve</label>
+            <input type="number" id="history-reserve" min="0" max="30" onchange="saveReserve()">
+            <button class="reset-btn" onclick="resetHistory()" title="Сбросить историю">↺</button>
+        </div>
         <input type="text" id="webhook-url" placeholder="Discord Webhook URL" oninput="saveWebhook()">
     </div>
 
@@ -38,7 +48,7 @@
     <div id="players-container" class="players-row"></div>
 </div>
 
-<script src="static/js/11f9fe9.js"></script>
+<script>document.write('<script src="static/js/app.js?v=' + ASSET_VER + '"><\/script>');</script>
 
 </body>
 </html>

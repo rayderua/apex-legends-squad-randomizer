@@ -1,4 +1,4 @@
-        :root {
+:root {
             --apex-red: #ff4b4b;
             --bg: #0d0d0d;
             --card-bg: #161616;
@@ -39,7 +39,7 @@
             border-radius: 3px;
         }
 
-        input[type="text"] {
+        input[type="text"], input[type="number"] {
             background: #222;
             border: 1px solid #444;
             color: var(--accent-blue);
@@ -47,6 +47,10 @@
             border-radius: 2px;
             font-size: 10px;
         }
+
+        #history-reserve { width: 36px; }
+        .reset-btn { background: #333; color: #aaa; border: 1px solid #444; border-radius: 2px; cursor: pointer; font-size: 11px; padding: 2px 6px; }
+        .reset-btn:hover { color: #fff; }
 
         #webhook-url { width: 200px; text-transform: none; border-color: #555; }
 
@@ -81,6 +85,9 @@
         .legend-opt input { display: none; }
         .legend-opt:has(input:checked) { border-color: var(--apex-red); z-index: 1; }
         .legend-opt:has(input:checked) img { filter: grayscale(0) brightness(1); }
+        /* отмечена, но сейчас на кулдауне и не участвует в рандоме */
+        .legend-opt.blocked:has(input:checked) { border-color: #555; }
+        .legend-opt.blocked:has(input:checked) img { filter: grayscale(1) brightness(0.65); }
 
         .btn-group { display: flex; justify-content: center; gap: 10px; margin: 15px 0; }
         .roll-btn {

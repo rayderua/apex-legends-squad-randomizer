@@ -56,8 +56,10 @@ const CONFIG = {
     });
 
     // Сколько легенд из пула игрока всегда остаются доступными.
-    // Из N отмеченных легенд гарантируется N-5 разных подряд (13 -> 8).
-    const HISTORY_RESERVE = 5;
+    // Из N отмеченных легенд гарантируется N-reserve разных подряд (13, reserve 5 -> 8).
+    const DEFAULT_RESERVE = 5;
+    let historyReserve = parseInt(localStorage.getItem('apex_reserve'));
+    if (isNaN(historyReserve)) historyReserve = DEFAULT_RESERVE;
     const HISTORY_MAX = 100;
     let rollHistory = JSON.parse(localStorage.getItem('apex_history')) || [[], [], []];
 
@@ -71,7 +73,7 @@ const CONFIG = {
 
     // Легенды, которые игроку сейчас нельзя выпадать (последние N-5-1 его роллов)
     function getBlocked(playerIdx, pool) {
-        const window = pool.length - HISTORY_RESERVE;   // столько разных подряд
+        const window = pool.length - historyReserve;   // столько разных подряд
         const block = Math.max(0, window - 1);           // столько последних исключаем
         if (!block) return new Set();
         const recent = rollHistory[playerIdx].filter(n => pool.includes(n));
@@ -98,10 +100,39 @@ const CONFIG = {
         return null;
     }
 
+    function getPool(playerIdx) {
+        return Array.from(document.querySelectorAll(`input[name="p${playerIdx+1}"]:checked`)).map(i => i.value);
+    }
+
+    // Подсвечивает серым легенд, которые сейчас на "кулдауне" и не участвуют в рандоме
+    function refreshBlocked() {
+        [0, 1, 2].forEach(p => {
+            const blocked = getBlocked(p, getPool(p));
+            document.querySelectorAll(`input[name="p${p+1}"]`).forEach(inp => {
+                inp.closest('.legend-opt').classList.toggle('blocked', inp.checked && blocked.has(inp.value));
+            });
+        });
+    }
+
+    function saveReserve() {
+        const el = document.getElementById('history-reserve');
+        let v = parseInt(el.value);
+        if (isNaN(v) || v < 0) v = 0;
+        el.value = v;
+        historyReserve = v;
+        localStorage.setItem('apex_reserve', v);
+        refreshBlocked();
+    }
+
     function resetHistory() {
         rollHistory = [[], [], []];
         localStorage.removeItem('apex_history');
+        refreshBlocked();
     }
+
+    document.getElementById('history-reserve').value = historyReserve;
+    container.addEventListener('change', refreshBlocked);
+    refreshBlocked();
 
     async function startRoulette() {
         const btn = document.getElementById('rollBtn');
@@ -109,7 +140,7 @@ const CONFIG = {
         lastActiveIdxs = activePlayers.map((v, i) => v ? i : null).filter(v => v !== null);
         if (!lastActiveIdxs.length) return alert("Choose at least one player!");
 
-        const pools = lastActiveIdxs.map(idx => Array.from(document.querySelectorAll(`input[name="p${idx+1}"]:checked`)).map(i => i.value));
+        const pools = lastActiveIdxs.map(getPool);
         if (pools.some(p => !p.length)) return alert("Choose at least one legend!");
 
         btn.disabled = true;
@@ -124,6 +155,7 @@ const CONFIG = {
                 if (h.length > HISTORY_MAX) h.splice(0, h.length - HISTORY_MAX);
             });
             localStorage.setItem('apex_history', JSON.stringify(rollHistory));
+            refreshBlocked();
 
             lastSquad = final;
             updateResultUI(final, lastActiveIdxs, 1);
