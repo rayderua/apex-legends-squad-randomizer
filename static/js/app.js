@@ -75,9 +75,21 @@ const CONFIG = {
     function getBlocked(playerIdx, pool) {
         const window = pool.length - historyReserve;   // столько разных подряд
         const block = Math.max(0, window - 1);           // столько последних исключаем
-        if (!block) return new Set();
-        const recent = rollHistory[playerIdx].filter(n => pool.includes(n));
-        return new Set(recent.slice(-block));
+        const result = new Map();                        // легенда -> через сколько роллов вернётся
+        if (!block) return result;
+        const recent = rollHistory[playerIdx].filter(n => pool.includes(n)).slice(-block);
+        for (let j = 0; j < recent.length; j++) {
+            const name = recent[recent.length - 1 - j];  // j = 0 — самый последний ролл
+            if (!result.has(name)) result.set(name, block - j);
+        }
+        return result;
+    }
+
+    function rollsWord(n) {
+        const m10 = n % 10, m100 = n % 100;
+        if (m10 === 1 && m100 !== 11) return 'ролл';
+        if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return 'ролла';
+        return 'роллов';
     }
 
     function pickSquad(pools, idxs) {
@@ -109,7 +121,17 @@ const CONFIG = {
         [0, 1, 2].forEach(p => {
             const blocked = getBlocked(p, getPool(p));
             document.querySelectorAll(`input[name="p${p+1}"]`).forEach(inp => {
-                inp.closest('.legend-opt').classList.toggle('blocked', inp.checked && blocked.has(inp.value));
+                const opt = inp.closest('.legend-opt');
+                const img = opt.querySelector('img');
+                const cd = inp.checked ? blocked.get(inp.value) : undefined;
+                opt.classList.toggle('blocked', cd !== undefined);
+                if (cd !== undefined) {
+                    opt.dataset.cd = cd;
+                    img.title = `${inp.value} — недавно выпадал, вернётся в рандом через ${cd} ${rollsWord(cd)}`;
+                } else {
+                    delete opt.dataset.cd;
+                    img.title = inp.value;
+                }
             });
         });
     }

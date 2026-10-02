@@ -85,9 +85,31 @@
         .legend-opt input { display: none; }
         .legend-opt:has(input:checked) { border-color: var(--apex-red); z-index: 1; }
         .legend-opt:has(input:checked) img { filter: grayscale(0) brightness(1); }
-        /* отмечена, но сейчас на кулдауне и не участвует в рандоме */
+        /* отмечена, но сейчас на кулдауне: затемнение + счётчик роллов, как перезарядка в игре */
         .legend-opt.blocked:has(input:checked) { border-color: #555; }
-        .legend-opt.blocked:has(input:checked) img { filter: grayscale(1) brightness(0.65); }
+        .legend-opt.blocked:has(input:checked) img { filter: grayscale(1) brightness(0.45); }
+        .legend-opt.blocked:has(input:checked)::after {
+            content: attr(data-cd);
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            color: #fff;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 0 0 4px #000, 0 0 2px #000;
+        }
+        .legend-opt.blocked:has(input:checked)::before {
+            content: "⏳";
+            position: absolute;
+            top: 1px;
+            right: 2px;
+            font-size: 9px;
+            pointer-events: none;
+            z-index: 1;
+        }
 
         .btn-group { display: flex; justify-content: center; gap: 10px; margin: 15px 0; }
         .roll-btn {
