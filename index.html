@@ -1,13 +1,15 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Apex Squad Randomizer</title>
     <meta name="referrer" content="no-referrer">
     <meta http-equiv="Cache-Control" content="no-cache">
+    <link rel="icon" href="static/images/ApexIcon.png">
     <script>
-        // Уникальный параметр к каждому запросу -> браузер всегда качает свежие JS/CSS
+        // Cache busting: append a unique query string to JS/CSS so the browser
+        // always fetches the latest version after a release (no file renaming needed).
         window.ASSET_VER = Date.now();
         document.write('<link rel="stylesheet" href="static/css/style.css?v=' + ASSET_VER + '">');
     </script>
@@ -15,36 +17,31 @@
 <body>
 
 <div class="container">
+    <!-- Top bar: players, no-repeat settings, Discord webhook -->
     <div class="settings-bar">
-        <div class="player-toggle-group">
-            <input type="checkbox" id="active-p1" checked onchange="togglePlayer('p1')">
-            <input type="text" id="name-p1" placeholder="P1" oninput="updateNames()">
-        </div>
-        <div class="player-toggle-group">
-            <input type="checkbox" id="active-p2" checked onchange="togglePlayer('p2')">
-            <input type="text" id="name-p2" placeholder="P2" oninput="updateNames()">
-        </div>
-        <div class="player-toggle-group">
-            <input type="checkbox" id="active-p3" checked onchange="togglePlayer('p3')">
-            <input type="text" id="name-p3" placeholder="P3" oninput="updateNames()">
-        </div>
-        <div class="player-toggle-group" title="Сколько легенд всегда остаются в рандоме. Из N отмеченных подряд будет N-reserve разных">
+        <div id="player-toggles" class="player-toggles"></div>
+
+        <div class="setting-group"
+             title="How many legends always stay in the pool. With N selected legends you get N - reserve different legends in a row.">
             <label for="history-reserve">Reserve</label>
-            <input type="number" id="history-reserve" min="0" max="30" onchange="saveReserve()">
-            <button class="reset-btn" onclick="resetHistory()" title="Сбросить историю">↺</button>
+            <input type="number" id="history-reserve" min="0" max="50">
+            <button type="button" id="reset-history" class="reset-btn" title="Reset roll history">↺</button>
         </div>
-        <input type="text" id="webhook-url" placeholder="Discord Webhook URL" oninput="saveWebhook()">
+
+        <input type="text" id="webhook-url" placeholder="Discord Webhook URL" autocomplete="off">
     </div>
 
+    <!-- Rolled squad -->
     <div id="result" class="result-zone">
         <div class="placeholder-text">READY UP?</div>
     </div>
 
     <div class="btn-group">
-        <button id="rollBtn" class="roll-btn" onclick="startRoulette()">RANDOMIZE</button>
-        <button id="discordBtn" class="discord-btn" onclick="sendToDiscord()">SEND TO DISCORD</button>
+        <button type="button" id="roll-btn" class="roll-btn">RANDOMIZE</button>
+        <button type="button" id="discord-btn" class="discord-btn" hidden>SEND TO DISCORD</button>
     </div>
 
+    <!-- Per-player legend pools -->
     <div id="players-container" class="players-row"></div>
 </div>
 

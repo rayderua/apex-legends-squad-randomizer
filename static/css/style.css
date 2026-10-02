@@ -1,128 +1,317 @@
+/* =====================================================================
+   Apex Squad Randomizer — styles
+   ===================================================================== */
+
 :root {
-            --apex-red: #ff4b4b;
-            --bg: #0d0d0d;
-            --card-bg: #161616;
-            --accent-blue: #00d4ff;
-        }
+    --apex-red: #ff4b4b;
+    --accent-blue: #00d4ff;
+    --discord: #5865f2;
 
-        body {
-            background-color: var(--bg);
-            color: #fff;
-            font-family: 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 5px;
-            letter-spacing: 0.5px;
-            font-size: 11px;
-        }
+    --bg: #0d0d0d;
+    --panel-bg: #111;
+    --card-bg: #161616;
+    --control-bg: #1a1a1a;
+    --input-bg: #222;
 
-        .container { max-width: 1000px; margin: 0 auto; }
+    --border: #333;
+    --border-input: #444;
+    --muted: #666;
 
-        .settings-bar {
-            background: #111;
-            padding: 8px;
-            margin-bottom: 10px;
-            border-radius: 4px;
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            align-items: center;
-            border-bottom: 1px solid #333;
-            flex-wrap: wrap;
-        }
+    /* Grey "no entry" sign for legends a player doesn't have */
+    --no-entry-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='none' stroke='%23999' stroke-width='9'/%3E%3Cline x1='22' y1='22' x2='78' y2='78' stroke='%23999' stroke-width='9'/%3E%3C/svg%3E");
+}
 
-        .player-toggle-group {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            background: #1a1a1a;
-            padding: 3px 6px;
-            border-radius: 3px;
-        }
+/* ---------------------------------------------------------------------
+   Base
+   --------------------------------------------------------------------- */
 
-        input[type="text"], input[type="number"] {
-            background: #222;
-            border: 1px solid #444;
-            color: var(--accent-blue);
-            padding: 4px 6px;
-            border-radius: 2px;
-            font-size: 10px;
-        }
+body {
+    margin: 0;
+    padding: 5px;
+    background-color: var(--bg);
+    color: #fff;
+    font-family: 'Segoe UI', Roboto, sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+}
 
-        #history-reserve { width: 36px; }
-        .reset-btn { background: #333; color: #aaa; border: 1px solid #444; border-radius: 2px; cursor: pointer; font-size: 11px; padding: 2px 6px; }
-        .reset-btn:hover { color: #fff; }
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+}
 
-        #webhook-url { width: 200px; text-transform: none; border-color: #555; }
+input[type="text"],
+input[type="number"] {
+    padding: 4px 6px;
+    background: var(--input-bg);
+    border: 1px solid var(--border-input);
+    border-radius: 2px;
+    color: var(--accent-blue);
+    font-size: 10px;
+}
 
-        .result-zone {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 15px;
-            padding: 8px;
-            background: #000;
-            border: 2px solid var(--apex-red);
-            border-radius: 6px;
-            min-height: 140px;
-        }
+/* ---------------------------------------------------------------------
+   Settings bar
+   --------------------------------------------------------------------- */
 
-        .res-item { text-align: center; width: 100px; }
-        .res-item img { width: 100%; border-bottom: 3px solid var(--apex-red); display: block; }
-        .res-name { background: var(--apex-red); padding: 2px; font-weight: bold; font-size: 10px; }
+.settings-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 10px;
+    padding: 8px;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--border);
+    border-radius: 4px;
+}
 
-        .players-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-        .player-card { background: var(--card-bg); padding: 8px; border-radius: 4px; border-top: 3px solid #333; transition: 0.3s; }
-        .player-card.disabled { opacity: 0.15; pointer-events: none; filter: grayscale(1); }
-        .player-display-name { margin: 0 0 8px 0; color: var(--accent-blue); font-size: 0.9rem; text-align: center; border-bottom: 1px solid #222; }
+/* Player toggles are rendered by JS; let them flow as direct flex items */
+.player-toggles {
+    display: contents;
+}
 
-        .class-group { margin-bottom: 6px; }
-        .class-header { font-size: 8px; color: #666; margin-bottom: 3px; display: flex; align-items: center; gap: 4px; }
-        .legend-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; }
+.setting-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 6px;
+    background: var(--control-bg);
+    border-radius: 3px;
+}
 
-        .legend-opt { position: relative; cursor: pointer; aspect-ratio: 1/1; background: #111; border: 1px solid #222; }
-        .legend-opt img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) brightness(0.3); }
-        .legend-opt input { display: none; }
-        .legend-opt:has(input:checked) { border-color: var(--apex-red); z-index: 1; }
-        .legend-opt:has(input:checked) img { filter: grayscale(0) brightness(1); }
-        /* отмечена, но сейчас на кулдауне: затемнение + знак "стоянка запрещена" + счётчик роллов */
-        .legend-opt.blocked:has(input:checked) { border-color: #555; }
-        .legend-opt.blocked:has(input:checked) img { filter: grayscale(1) brightness(0.45); }
-        .legend-opt.blocked:has(input:checked)::before {
-            content: "";
-            position: absolute;
-            inset: 8%;
-            pointer-events: none;
-            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='none' stroke='%23999' stroke-width='9'/%3E%3Cline x1='22' y1='22' x2='78' y2='78' stroke='%23999' stroke-width='9'/%3E%3C/svg%3E") center / contain no-repeat;
-            opacity: 0.85;
-            z-index: 1;
-        }
-        .legend-opt.blocked:has(input:checked)::after {
-            content: attr(data-cd);
-            position: absolute;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            pointer-events: none;
-            color: rgba(255, 255, 255, 0.45);
-            font-size: 14px;
-            font-weight: bold;
-            text-shadow: 0 0 3px #000;
-            z-index: 2;
-        }
+#history-reserve {
+    width: 36px;
+}
 
-        .btn-group { display: flex; justify-content: center; gap: 10px; margin: 15px 0; }
-        .roll-btn {
-            width: 260px; padding: 12px; background: var(--apex-red); color: white;
-            font-size: 16px; font-weight: bold; border: none; cursor: pointer;
-            clip-path: polygon(5% 0, 100% 0, 95% 100%, 0% 100%);
-        }
-        .discord-btn {
-            width: 180px; padding: 12px; background: #5865F2; color: white;
-            font-size: 12px; font-weight: bold; border: none; cursor: pointer;
-            clip-path: polygon(5% 0, 100% 0, 95% 100%, 0% 100%);
-            display: none;
-        }
-        .roll-btn:disabled, .discord-btn:disabled { background: #444; opacity: 0.7; }
-        .placeholder-text { color: #333; font-size: 0.9rem; }
+#webhook-url {
+    width: 200px;
+    border-color: #555;
+}
+
+.reset-btn {
+    padding: 2px 6px;
+    background: var(--border);
+    border: 1px solid var(--border-input);
+    border-radius: 2px;
+    color: #aaa;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.reset-btn:hover {
+    color: #fff;
+}
+
+/* ---------------------------------------------------------------------
+   Result zone (rolled squad)
+   --------------------------------------------------------------------- */
+
+.result-zone {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    min-height: 140px;
+    margin-bottom: 15px;
+    padding: 8px;
+    background: #000;
+    border: 2px solid var(--apex-red);
+    border-radius: 6px;
+}
+
+.placeholder-text {
+    color: var(--border);
+    font-size: 0.9rem;
+}
+
+.res-item {
+    width: 100px;
+    text-align: center;
+}
+
+.res-item img {
+    display: block;
+    width: 100%;
+    border-bottom: 3px solid var(--apex-red);
+}
+
+.res-name {
+    padding: 2px;
+    background: var(--apex-red);
+    font-size: 10px;
+    font-weight: bold;
+}
+
+.res-player {
+    margin-top: 1px;
+    color: var(--border-input);
+    font-size: 7px;
+}
+
+/* ---------------------------------------------------------------------
+   Buttons
+   --------------------------------------------------------------------- */
+
+.btn-group {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin: 15px 0;
+}
+
+.roll-btn,
+.discord-btn {
+    padding: 12px;
+    border: none;
+    color: #fff;
+    font-weight: bold;
+    cursor: pointer;
+    clip-path: polygon(5% 0, 100% 0, 95% 100%, 0% 100%);
+}
+
+.roll-btn {
+    width: 260px;
+    background: var(--apex-red);
+    font-size: 16px;
+}
+
+.discord-btn {
+    width: 180px;
+    background: var(--discord);
+    font-size: 12px;
+}
+
+.discord-btn[hidden] {
+    display: none;
+}
+
+.roll-btn:disabled,
+.discord-btn:disabled {
+    background: var(--border-input);
+    opacity: 0.7;
+}
+
+/* ---------------------------------------------------------------------
+   Player cards
+   --------------------------------------------------------------------- */
+
+.players-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.player-card {
+    padding: 8px;
+    background: var(--card-bg);
+    border-top: 3px solid var(--border);
+    border-radius: 4px;
+    transition: 0.3s;
+}
+
+/* Player excluded from the roll */
+.player-card.disabled {
+    opacity: 0.15;
+    filter: grayscale(1);
+    pointer-events: none;
+}
+
+.player-display-name {
+    margin: 0 0 8px;
+    border-bottom: 1px solid var(--input-bg);
+    color: var(--accent-blue);
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.class-group {
+    margin-bottom: 6px;
+}
+
+.class-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 3px;
+    color: var(--muted);
+    font-size: 8px;
+}
+
+.legend-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 2px;
+}
+
+/* ---------------------------------------------------------------------
+   Legend tile states
+     available   — checked, in the pool: full colour, red border
+     cooldown    — checked, rolled recently: grey + rolls-left counter
+     not owned   — unchecked: dark + grey "no entry" sign
+   --------------------------------------------------------------------- */
+
+.legend-opt {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    background: var(--panel-bg);
+    border: 1px solid var(--input-bg);
+    cursor: pointer;
+}
+
+.legend-opt input {
+    display: none;
+}
+
+/* Not owned (default state) */
+.legend-opt img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: grayscale(1) brightness(0.3);
+}
+
+.legend-opt:not(:has(input:checked))::before {
+    content: "";
+    position: absolute;
+    inset: 8%;
+    z-index: 1;   /* above the img, which has its own stacking context because of filter */
+    background: var(--no-entry-icon) center / contain no-repeat;
+    opacity: 0.85;
+    pointer-events: none;
+}
+
+/* Available */
+.legend-opt:has(input:checked) {
+    z-index: 1;
+    border-color: var(--apex-red);
+}
+
+.legend-opt:has(input:checked) img {
+    filter: none;
+}
+
+/* On cooldown */
+.legend-opt.blocked:has(input:checked) {
+    border-color: #555;
+}
+
+.legend-opt.blocked:has(input:checked) img {
+    filter: grayscale(1) brightness(0.45);
+}
+
+.legend-opt.blocked:has(input:checked)::after {
+    content: attr(data-cd);
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 14px;
+    font-weight: bold;
+    text-shadow: 0 0 3px #000;
+    pointer-events: none;
+}
