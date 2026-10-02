@@ -4,9 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="660d8102-9677-4059-8ea9-f94fe4c4f660" name="Changes" comment="">
+    <list default="true" id="660d8102-9677-4059-8ea9-f94fe4c4f660" name="Changes" comment="add axle">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/index.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/static/js/script.js" beforeDir="false" afterPath="$PROJECT_DIR$/static/js/11f9fe8.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/static/js/11f9fe8.js" beforeDir="false" afterPath="$PROJECT_DIR$/static/js/11f9fe9.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -61,6 +62,30 @@
       <option name="presentableId" value="Default" />
       <updated>1772325356446</updated>
     </task>
+    <task id="LOCAL-00001" summary="add axle">
+      <option name="closed" value="true" />
+      <created>1778237446965</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1778237446965</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="add axle" />
+    <option name="LAST_COMMIT_MESSAGE" value="add axle" />
   </component>
 </project>
