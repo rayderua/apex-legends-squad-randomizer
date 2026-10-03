@@ -46,14 +46,18 @@ any **N − R** consecutive rolls for that player are guaranteed to be different
 2. Paste the URL into the **Discord Webhook URL** field.
 3. Roll a squad and press **SEND TO DISCORD**.
 
-Each player gets a card with their name, the legend, its portrait on the right and an image of the
-legend select screen with that legend highlighted. The images are drawn in the browser (canvas) and uploaded with the message.
+Each player gets a card with their name, the legend, its portrait on the right and an image below:
+
+- a schematic of the legend select screen with the rolled legend's slot in red — where to click;
+- the legend's class with large portraits, the rolled legend highlighted — easy to recognise.
+
+(Discord shrinks embed images to ~400px wide, so a full select screen with faces would be unreadable.) The images are drawn in the browser (canvas) and uploaded with the message.
 
 If the page is opened directly from a file (`file://`), browsers block exporting the canvas,
 so the message is sent as text only. Host the page (GitHub Pages, or `python -m http.server` locally)
 to get the images.
 
-The map follows `CONFIG.classes` and `CONFIG.legendMap.rows` in `static/js/app.js`. When a new season
+The image follows `CONFIG.classes` and `CONFIG.legendMap.rows` in `static/js/app.js`. When a new season
 changes the order on the in-game select screen, update the config so the highlight stays accurate.
 
 > The webhook URL is stored only in your browser, but anyone who has it can post to the channel —

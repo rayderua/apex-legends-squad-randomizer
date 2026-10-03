@@ -39,20 +39,36 @@
             embedColor: 0xFF4B4B,
         },
 
-        // Legend select screen layout, used for the per-player "map" image sent to Discord.
-        // Must match the in-game order: classes per row, legends in CONFIG.classes order.
+        // Image sent to Discord for each player:
+        //   1) schematic of the legend select screen (where to click),
+        //   2) the rolled legend's class with large, recognisable portraits.
+        // Discord shrinks embed images to ~400px wide, so the full screen with faces would be unreadable.
+        // `rows` must match the in-game layout; legends follow CONFIG.classes order.
         legendMap: {
             rows: [['Assault', 'Skirmisher'], ['Recon', 'Support', 'Controller']],
-            cell: 144,         // portrait size, px
-            gap: 12,           // gap between portraits
-            classGapCells: 1,  // empty cells between classes
-            padding: 32,
-            radius: 12,
-            border: 8,         // highlight border width
-            jpegQuality: 0.9,
+            padding: 20,
             background: '#0d0d0d',
             accent: '#ff4b4b',
-            dimOverlay: 'rgba(0, 0, 0, 0.7)',
+            jpegQuality: 0.9,
+            overview: {
+                cell: 40,
+                gap: 6,
+                classGapCells: 1,      // empty cells between classes
+                radius: 6,
+                color: '#464646',
+            },
+            label: {
+                font: 'bold 44px "Segoe UI", Roboto, Arial, sans-serif',
+                color: '#969696',
+                height: 70,
+            },
+            strip: {
+                cell: 150,
+                gap: 10,
+                radius: 12,
+                border: 7,             // highlight border width
+                dimOverlay: 'rgba(0, 0, 0, 0.7)',
+            },
         },
     };
 
@@ -395,7 +411,7 @@
 
     const imageCache = new Map();
 
-    /** Loads a portrait once and reuses it for every map. */
+    /** Loads a portrait once and reuses it for every image. */
     function loadImage(src) {
         if (!imageCache.has(src)) {
             imageCache.set(src, new Promise((resolve, reject) => {
@@ -408,21 +424,24 @@
         return imageCache.get(src);
     }
 
-    /** Width of one class block in px. */
-    function classWidth(cls) {
-        const { cell, gap } = CONFIG.legendMap;
-        const count = CONFIG.classes[cls].length;
-        return count * cell + (count - 1) * gap;
+    /** Width of `count` cells in a row. */
+    const cellsWidth = (count, cell, gap) => count * cell + Math.max(0, count - 1) * gap;
+
+    /** Width of one row of the overview, including empty cells between classes. */
+    function overviewRowWidth(row) {
+        const { cell, gap, classGapCells } = CONFIG.legendMap.overview;
+        const cells = row.reduce((sum, cls) => sum + CONFIG.classes[cls].length, 0)
+            + (row.length - 1) * classGapCells;
+        return cellsWidth(cells, cell, gap);
     }
 
-    /** Space between two classes: gaps around the empty cell(s). */
-    function classGap() {
-        const { cell, gap, classGapCells } = CONFIG.legendMap;
-        return classGapCells * (cell + gap) + gap;
-    }
-
-    function rowWidth(row) {
-        return row.reduce((sum, cls) => sum + classWidth(cls), 0) + (row.length - 1) * classGap();
+    function overviewSize() {
+        const { cell, gap } = CONFIG.legendMap.overview;
+        const { rows } = CONFIG.legendMap;
+        return {
+            width: Math.max(...rows.map(overviewRowWidth)),
+            height: cellsWidth(rows.length, cell, gap),
+        };
     }
 
     /** Draws an image into a square, cropping it like CSS object-fit: cover. */
@@ -431,6 +450,11 @@
         const sx = (img.naturalWidth - side) / 2;
         const sy = (img.naturalHeight - side) / 2;
         ctx.drawImage(img, sx, sy, side, side, x, y, size, size);
+    }
+
+    function roundRect(ctx, x, y, size, radius) {
+        ctx.beginPath();
+        ctx.roundRect(x, y, size, size, radius);
     }
 
     function canvasToBlob(canvas, type, quality) {
@@ -444,62 +468,99 @@
         });
     }
 
-    /**
-     * Draws the legend select screen with `selected` highlighted and everyone else dimmed.
-     * Rows are centred, like in the game. Resolves to a JPEG Blob.
-     */
-    async function renderLegendMap(selected) {
-        const m = CONFIG.legendMap;
-        const width = Math.max(...m.rows.map(rowWidth)) + m.padding * 2;
-        const height = m.rows.length * m.cell + (m.rows.length - 1) * m.gap + m.padding * 2;
+    const classOf = legend => Object.keys(CONFIG.classes).find(cls => CONFIG.classes[cls].includes(legend));
 
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
+    /** Part 1: grey squares in the select-screen layout, the rolled legend in red. */
+    function drawOverview(ctx, selected, left, top, width) {
+        const { rows, accent } = CONFIG.legendMap;
+        const { cell, gap, classGapCells, radius, color } = CONFIG.legendMap.overview;
 
-        ctx.fillStyle = m.background;
-        ctx.fillRect(0, 0, width, height);
-
-        const portraits = new Map(await Promise.all(
-            ALL_LEGENDS.map(async legend => [legend, await loadImage(legendImage(legend))]),
-        ));
-
-        let highlight = null;
-
-        m.rows.forEach((row, rowIndex) => {
-            let x = (width - rowWidth(row)) / 2;
-            const y = m.padding + rowIndex * (m.cell + m.gap);
+        rows.forEach((row, rowIndex) => {
+            let x = left + (width - overviewRowWidth(row)) / 2;   // rows are centred, like in game
+            const y = top + rowIndex * (cell + gap);
 
             row.forEach(cls => {
                 for (const legend of CONFIG.classes[cls]) {
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.roundRect(x, y, m.cell, m.cell, m.radius);
-                    ctx.clip();
-                    drawCover(ctx, portraits.get(legend), x, y, m.cell);
-                    if (legend !== selected) {
-                        ctx.fillStyle = m.dimOverlay;
-                        ctx.fillRect(x, y, m.cell, m.cell);
-                    }
-                    ctx.restore();
-
-                    if (legend === selected) highlight = { x, y };
-                    x += m.cell + m.gap;
+                    ctx.fillStyle = legend === selected ? accent : color;
+                    roundRect(ctx, x, y, cell, radius);
+                    ctx.fill();
+                    x += cell + gap;
                 }
-                x += classGap() - m.gap;
+                x += classGapCells * (cell + gap);
             });
         });
+    }
 
-        // Border on top of everything so neighbours don't cover it
-        if (highlight) {
-            const half = m.border / 2;
-            ctx.strokeStyle = m.accent;
-            ctx.lineWidth = m.border;
+    /** Part 2: the rolled legend's class with large portraits, the rolled one highlighted. */
+    function drawClassStrip(ctx, cls, selected, portraits, left, top, width) {
+        const { accent } = CONFIG.legendMap;
+        const { cell, gap, radius, border, dimOverlay } = CONFIG.legendMap.strip;
+        const legends = CONFIG.classes[cls];
+
+        let x = left + (width - cellsWidth(legends.length, cell, gap)) / 2;
+        let highlight = null;
+
+        for (const legend of legends) {
+            ctx.save();
+            roundRect(ctx, x, top, cell, radius);
+            ctx.clip();
+            drawCover(ctx, portraits.get(legend), x, top, cell);
+            if (legend !== selected) {
+                ctx.fillStyle = dimOverlay;
+                ctx.fillRect(x, top, cell, cell);
+            }
+            ctx.restore();
+
+            if (legend === selected) highlight = x;
+            x += cell + gap;
+        }
+
+        // Border drawn last so neighbours don't cover it
+        if (highlight !== null) {
+            const half = border / 2;
+            ctx.strokeStyle = accent;
+            ctx.lineWidth = border;
             ctx.beginPath();
-            ctx.roundRect(highlight.x - half, highlight.y - half, m.cell + m.border, m.cell + m.border, m.radius + half);
+            ctx.roundRect(highlight - half, top - half, cell + border, cell + border, radius + half);
             ctx.stroke();
         }
+    }
+
+    /** Builds the per-player Discord image (overview + class strip). Resolves to a JPEG Blob. */
+    async function renderLegendMap(selected) {
+        const m = CONFIG.legendMap;
+        const cls = classOf(selected);
+        const legends = CONFIG.classes[cls];
+
+        // Same width for every class, so all players' images are drawn at the same scale in Discord
+        const overview = overviewSize();
+        const maxClassSize = Math.max(...Object.values(CONFIG.classes).map(list => list.length));
+        const contentWidth = Math.max(overview.width, cellsWidth(maxClassSize, m.strip.cell, m.strip.gap));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = contentWidth + m.padding * 2;
+        canvas.height = m.padding + overview.height + m.label.height + m.strip.cell + m.padding;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = m.background;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const portraits = new Map(await Promise.all(
+            legends.map(async legend => [legend, await loadImage(legendImage(legend))]),
+        ));
+
+        let y = m.padding;
+        drawOverview(ctx, selected, m.padding, y, contentWidth);
+        y += overview.height;
+
+        ctx.fillStyle = m.label.color;
+        ctx.font = m.label.font;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(cls.toUpperCase(), canvas.width / 2, y + m.label.height / 2);
+        y += m.label.height;
+
+        drawClassStrip(ctx, cls, selected, portraits, m.padding, y, contentWidth);
 
         return canvasToBlob(canvas, 'image/jpeg', m.jpegQuality);
     }
