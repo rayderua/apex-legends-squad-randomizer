@@ -18,8 +18,8 @@ No build step, no backend, no dependencies — just open `index.html` or host th
   - full colour, red border — available;
   - grey with a number — rolled recently, the number shows how many rolls until it's back in the pool;
   - dark with a grey "no entry" sign — not in the player's pool.
-- **Discord webhook** — sends the result: one card per player with a mini map of the legend select screen
-  where the rolled legend is highlighted, so it's easy to find in game.
+- **Discord webhook** — sends the result: one card per player with an image of the legend select screen
+  where the rolled legend is highlighted, so it's easy to find in game. Two themes, with a live preview.
 - **Everything is saved locally** in the browser (`localStorage`): names, active players, legend pools,
   reserve, roll history and the webhook URL.
 
@@ -46,18 +46,23 @@ any **N − R** consecutive rolls for that player are guaranteed to be different
 2. Paste the URL into the **Discord Webhook URL** field.
 3. Roll a squad and press **SEND TO DISCORD**.
 
-Each player gets a card with their name, the legend and an image:
+Choose how the message looks with the **Discord theme** selector next to the webhook field.
+After a roll, the **Discord preview** panel shows exactly what will be sent with the selected theme
+(same images, same sizes as in Discord).
 
-- a schematic of the legend select screen with the rolled legend's slot in red — where to click;
-- the legend's class with large portraits, the rolled legend highlighted — easy to recognise.
+| Theme | Card text | Image |
+|-------|-----------|-------|
+| **Compact** | player name, legend in bold | grey schematic of the select screen with the legend's slot in red + the legend's class with large portraits |
+| **Detailed** | `Player: Legend` | the whole select screen with portraits, grey grid, the legend highlighted |
 
-(Discord shrinks embed images to ~400px wide, so a full select screen with faces would be unreadable.) The images are drawn in the browser (canvas) and uploaded with the message.
+Discord shrinks embed images to ~400px wide, so *Compact* is easier to read on phones,
+while *Detailed* shows the exact in-game layout.
 
 If the page is opened directly from a file (`file://`), browsers block exporting the canvas,
 so the message is sent as text only. Host the page (GitHub Pages, or `python -m http.server` locally)
 to get the images.
 
-The image follows `CONFIG.classes` and `CONFIG.legendMap.rows` in `static/js/app.js`. When a new season
+The images follow `CONFIG.classes` and `CONFIG.selectScreenRows` in `static/js/app.js`. When a new season
 changes the order on the in-game select screen, update the config so the highlight stays accurate.
 
 > The webhook URL is stored only in your browser, but anyone who has it can post to the channel —

@@ -33,41 +33,44 @@
 
         repoUrl: 'https://github.com/rayderua/apex-legends-squad-randomizer',
 
+        // Legend select screen layout in game: classes per row, legends in CONFIG.classes order.
+        // Update it when a new season changes the in-game order, otherwise Discord images point to the wrong slot.
+        selectScreenRows: [['Assault', 'Skirmisher'], ['Recon', 'Support', 'Controller']],
+
         discord: {
             username: 'Apex Squad Bot',
             avatarPath: 'static/images/ApexIcon.png',
             embedColor: 0xFF4B4B,
-        },
+            defaultTheme: 'compact',
 
-        // Image sent to Discord for each player:
-        //   1) schematic of the legend select screen (where to click),
-        //   2) the rolled legend's class with large, recognisable portraits.
-        // Discord shrinks embed images to ~400px wide, so the full screen with faces would be unreadable.
-        // `rows` must match the in-game layout; legends follow CONFIG.classes order.
-        legendMap: {
-            rows: [['Assault', 'Skirmisher'], ['Recon', 'Support', 'Controller']],
-            padding: 20,
-            background: '#0d0d0d',
-            accent: '#ff4b4b',
-            jpegQuality: 0.9,
-            overview: {
-                cell: 40,
-                gap: 6,
-                classGapCells: 1,      // empty cells between classes
-                radius: 6,
-                color: '#464646',
-            },
-            label: {
-                font: 'bold 44px "Segoe UI", Roboto, Arial, sans-serif',
-                color: '#969696',
-                height: 70,
-            },
-            strip: {
-                cell: 150,
-                gap: 10,
-                radius: 12,
-                border: 7,             // highlight border width
+            // Shared look of generated images
+            image: {
+                background: '#0d0d0d',
+                accent: '#ff4b4b',
                 dimOverlay: 'rgba(0, 0, 0, 0.7)',
+                jpegQuality: 0.9,
+            },
+
+            // Note: Discord shrinks embed images to ~400px wide and shows thumbnails at up to 80px
+            themes: {
+                // Theme 1: schematic of the select screen + the rolled legend's class with large portraits
+                compact: {
+                    padding: 20,
+                    overview: { cell: 40, gap: 6, classGapCells: 1, radius: 6, color: '#464646' },
+                    label: { font: 'bold 44px "Segoe UI", Roboto, Arial, sans-serif', color: '#969696', height: 70 },
+                    strip: { cell: 150, gap: 10, radius: 12, border: 7 },
+                },
+                // Theme 2: full select screen with portraits
+                detailed: {
+                    padding: 32,
+                    cell: 144,
+                    gap: 12,
+                    classGapCells: 1,
+                    radius: 12,
+                    border: 8,               // highlight border of the rolled legend
+                    gridBorder: 6,           // grey border of every other legend
+                    gridBorderColor: '#5a5a5a',
+                },
             },
         },
     };
@@ -83,6 +86,7 @@
         reserve: 'apex_reserve',
         history: 'apex_history',
         webhook: 'apex_webhook',
+        discordTheme: 'apex_discord_theme',
     };
 
     // ---------------------------------------------------------------------
@@ -130,8 +134,14 @@
         history: normalizeList(storage.load(STORAGE_KEYS.history), CONFIG.playerCount, () => [], isStringList),
         reserve: parseReserve(storage.load(STORAGE_KEYS.reserve, CONFIG.defaultReserve)),
         webhook: localStorage.getItem(STORAGE_KEYS.webhook) || '',   // stored as a plain string
+        discordTheme: migrateThemeId(storage.load(STORAGE_KEYS.discordTheme, CONFIG.discord.defaultTheme)),
         lastSquad: [],   // [{ player, legend }]
     };
+
+    /** Theme ids were renamed: classFocus -> compact, fullScreen -> detailed. */
+    function migrateThemeId(id) {
+        return { classFocus: 'compact', fullScreen: 'detailed' }[id] ?? id;
+    }
 
     function parseReserve(value) {
         const n = parseInt(value, 10);
@@ -145,6 +155,7 @@
         history: () => storage.save(STORAGE_KEYS.history, state.history),
         reserve: () => storage.save(STORAGE_KEYS.reserve, state.reserve),
         webhook: () => localStorage.setItem(STORAGE_KEYS.webhook, state.webhook),
+        discordTheme: () => storage.save(STORAGE_KEYS.discordTheme, state.discordTheme),
     };
 
     // ---------------------------------------------------------------------
@@ -265,6 +276,9 @@
         reserve: $('history-reserve'),
         resetHistory: $('reset-history'),
         webhook: $('webhook-url'),
+        discordTheme: $('discord-theme'),
+        previewPanel: $('discord-preview-panel'),
+        preview: $('discord-preview'),
         rollBtn: $('roll-btn'),
         discordBtn: $('discord-btn'),
     };
@@ -373,6 +387,7 @@
         state.lastSquad = squad;
         renderResult();
         renderCooldowns();
+        renderPreview();
         dom.discordBtn.hidden = false;
     }
 
@@ -390,10 +405,10 @@
     }
 
     // ---------------------------------------------------------------------
-    // Discord
+    // Discord: image rendering (canvas)
     // ---------------------------------------------------------------------
 
-    /** Base URL of the page (directory), used for absolute image links. */
+    /** Base URL of the page (directory), used for absolute links. */
     function getBaseUrl() {
         const url = new URL(window.location.href);
         url.hash = '';
@@ -407,11 +422,9 @@
         return /^https?:$/.test(window.location.protocol) ? getBaseUrl() : CONFIG.repoUrl;
     }
 
-    // --- Legend map image (canvas) ---------------------------------------
-
     const imageCache = new Map();
 
-    /** Loads a portrait once and reuses it for every image. */
+    /** Loads a portrait once and reuses it everywhere. */
     function loadImage(src) {
         if (!imageCache.has(src)) {
             imageCache.set(src, new Promise((resolve, reject) => {
@@ -424,24 +437,60 @@
         return imageCache.get(src);
     }
 
+    async function loadPortraits(legends) {
+        return new Map(await Promise.all(legends.map(async legend => [legend, await loadImage(legendImage(legend))])));
+    }
+
+    const classOf = legend => Object.keys(CONFIG.classes).find(cls => CONFIG.classes[cls].includes(legend));
+
     /** Width of `count` cells in a row. */
     const cellsWidth = (count, cell, gap) => count * cell + Math.max(0, count - 1) * gap;
 
-    /** Width of one row of the overview, including empty cells between classes. */
-    function overviewRowWidth(row) {
-        const { cell, gap, classGapCells } = CONFIG.legendMap.overview;
-        const cells = row.reduce((sum, cls) => sum + CONFIG.classes[cls].length, 0)
-            + (row.length - 1) * classGapCells;
+    /** Width of one select-screen row, including empty cells between classes. */
+    function selectScreenRowWidth(row, { cell, gap, classGapCells }) {
+        const cells = row.reduce((sum, cls) => sum + CONFIG.classes[cls].length, 0) + (row.length - 1) * classGapCells;
         return cellsWidth(cells, cell, gap);
     }
 
-    function overviewSize() {
-        const { cell, gap } = CONFIG.legendMap.overview;
-        const { rows } = CONFIG.legendMap;
+    function selectScreenSize(grid) {
+        const rows = CONFIG.selectScreenRows;
         return {
-            width: Math.max(...rows.map(overviewRowWidth)),
-            height: cellsWidth(rows.length, cell, gap),
+            width: Math.max(...rows.map(row => selectScreenRowWidth(row, grid))),
+            height: cellsWidth(rows.length, grid.cell, grid.gap),
         };
+    }
+
+    /** Position of every legend on the select screen; rows are centred within `width`, like in game. */
+    function layoutSelectScreen(grid, left, top, width) {
+        const { cell, gap, classGapCells } = grid;
+        const tiles = [];
+        CONFIG.selectScreenRows.forEach((row, rowIndex) => {
+            let x = left + (width - selectScreenRowWidth(row, grid)) / 2;
+            const y = top + rowIndex * (cell + gap);
+            row.forEach(cls => {
+                for (const legend of CONFIG.classes[cls]) {
+                    tiles.push({ legend, x, y });
+                    x += cell + gap;
+                }
+                x += classGapCells * (cell + gap);
+            });
+        });
+        return tiles;
+    }
+
+    function createCanvas(width, height) {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = CONFIG.discord.image.background;
+        ctx.fillRect(0, 0, width, height);
+        return { canvas, ctx };
+    }
+
+    function roundRectPath(ctx, x, y, size, radius) {
+        ctx.beginPath();
+        ctx.roundRect(x, y, size, size, radius);
     }
 
     /** Draws an image into a square, cropping it like CSS object-fit: cover. */
@@ -452,9 +501,36 @@
         ctx.drawImage(img, sx, sy, side, side, x, y, size, size);
     }
 
-    function roundRect(ctx, x, y, size, radius) {
+    /** Rounded portrait; optionally dimmed and with an inner border. */
+    function drawPortraitTile(ctx, img, x, y, size, { radius, dim = false, border = 0, borderColor = null }) {
+        ctx.save();
+        roundRectPath(ctx, x, y, size, radius);
+        ctx.clip();
+        drawCover(ctx, img, x, y, size);
+        if (dim) {
+            ctx.fillStyle = CONFIG.discord.image.dimOverlay;
+            ctx.fillRect(x, y, size, size);
+        }
+        ctx.restore();
+
+        if (border && borderColor) {
+            const half = border / 2;
+            ctx.strokeStyle = borderColor;
+            ctx.lineWidth = border;
+            ctx.beginPath();
+            ctx.roundRect(x + half, y + half, size - border, size - border, Math.max(0, radius - half));
+            ctx.stroke();
+        }
+    }
+
+    /** Accent border around a tile; drawn last so neighbours don't cover it. */
+    function drawHighlight(ctx, x, y, size, radius, width) {
+        const half = width / 2;
+        ctx.strokeStyle = CONFIG.discord.image.accent;
+        ctx.lineWidth = width;
         ctx.beginPath();
-        ctx.roundRect(x, y, size, size, radius);
+        ctx.roundRect(x - half, y - half, size + width, size + width, radius + half);
+        ctx.stroke();
     }
 
     function canvasToBlob(canvas, type, quality) {
@@ -468,145 +544,164 @@
         });
     }
 
-    const classOf = legend => Object.keys(CONFIG.classes).find(cls => CONFIG.classes[cls].includes(legend));
+    const toJpeg = canvas => canvasToBlob(canvas, 'image/jpeg', CONFIG.discord.image.jpegQuality);
 
-    /** Part 1: grey squares in the select-screen layout, the rolled legend in red. */
-    function drawOverview(ctx, selected, left, top, width) {
-        const { rows, accent } = CONFIG.legendMap;
-        const { cell, gap, classGapCells, radius, color } = CONFIG.legendMap.overview;
-
-        rows.forEach((row, rowIndex) => {
-            let x = left + (width - overviewRowWidth(row)) / 2;   // rows are centred, like in game
-            const y = top + rowIndex * (cell + gap);
-
-            row.forEach(cls => {
-                for (const legend of CONFIG.classes[cls]) {
-                    ctx.fillStyle = legend === selected ? accent : color;
-                    roundRect(ctx, x, y, cell, radius);
-                    ctx.fill();
-                    x += cell + gap;
-                }
-                x += classGapCells * (cell + gap);
-            });
-        });
-    }
-
-    /** Part 2: the rolled legend's class with large portraits, the rolled one highlighted. */
-    function drawClassStrip(ctx, cls, selected, portraits, left, top, width) {
-        const { accent } = CONFIG.legendMap;
-        const { cell, gap, radius, border, dimOverlay } = CONFIG.legendMap.strip;
-        const legends = CONFIG.classes[cls];
-
-        let x = left + (width - cellsWidth(legends.length, cell, gap)) / 2;
-        let highlight = null;
-
-        for (const legend of legends) {
-            ctx.save();
-            roundRect(ctx, x, top, cell, radius);
-            ctx.clip();
-            drawCover(ctx, portraits.get(legend), x, top, cell);
-            if (legend !== selected) {
-                ctx.fillStyle = dimOverlay;
-                ctx.fillRect(x, top, cell, cell);
-            }
-            ctx.restore();
-
-            if (legend === selected) highlight = x;
-            x += cell + gap;
-        }
-
-        // Border drawn last so neighbours don't cover it
-        if (highlight !== null) {
-            const half = border / 2;
-            ctx.strokeStyle = accent;
-            ctx.lineWidth = border;
-            ctx.beginPath();
-            ctx.roundRect(highlight - half, top - half, cell + border, cell + border, radius + half);
-            ctx.stroke();
-        }
-    }
-
-    /** Builds the per-player Discord image (overview + class strip). Resolves to a JPEG Blob. */
-    async function renderLegendMap(selected) {
-        const m = CONFIG.legendMap;
+    /** Theme 1 image: grey schematic of the select screen + the rolled legend's class with large portraits. */
+    async function renderClassFocusImage(selected) {
+        const t = CONFIG.discord.themes.compact;
         const cls = classOf(selected);
         const legends = CONFIG.classes[cls];
 
-        // Same width for every class, so all players' images are drawn at the same scale in Discord
-        const overview = overviewSize();
+        // Same width for every class, so all players' images are shown at the same scale in Discord
+        const overview = selectScreenSize(t.overview);
         const maxClassSize = Math.max(...Object.values(CONFIG.classes).map(list => list.length));
-        const contentWidth = Math.max(overview.width, cellsWidth(maxClassSize, m.strip.cell, m.strip.gap));
+        const contentWidth = Math.max(overview.width, cellsWidth(maxClassSize, t.strip.cell, t.strip.gap));
 
-        const canvas = document.createElement('canvas');
-        canvas.width = contentWidth + m.padding * 2;
-        canvas.height = m.padding + overview.height + m.label.height + m.strip.cell + m.padding;
-        const ctx = canvas.getContext('2d');
+        const { canvas, ctx } = createCanvas(
+            contentWidth + t.padding * 2,
+            t.padding + overview.height + t.label.height + t.strip.cell + t.padding,
+        );
+        const portraits = await loadPortraits(legends);
 
-        ctx.fillStyle = m.background;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        const portraits = new Map(await Promise.all(
-            legends.map(async legend => [legend, await loadImage(legendImage(legend))]),
-        ));
-
-        let y = m.padding;
-        drawOverview(ctx, selected, m.padding, y, contentWidth);
+        // 1) Schematic: where to click
+        let y = t.padding;
+        for (const tile of layoutSelectScreen(t.overview, t.padding, y, contentWidth)) {
+            ctx.fillStyle = tile.legend === selected ? CONFIG.discord.image.accent : t.overview.color;
+            roundRectPath(ctx, tile.x, tile.y, t.overview.cell, t.overview.radius);
+            ctx.fill();
+        }
         y += overview.height;
 
-        ctx.fillStyle = m.label.color;
-        ctx.font = m.label.font;
+        // 2) Class name
+        ctx.fillStyle = t.label.color;
+        ctx.font = t.label.font;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(cls.toUpperCase(), canvas.width / 2, y + m.label.height / 2);
-        y += m.label.height;
+        ctx.fillText(cls.toUpperCase(), canvas.width / 2, y + t.label.height / 2);
+        y += t.label.height;
 
-        drawClassStrip(ctx, cls, selected, portraits, m.padding, y, contentWidth);
+        // 3) Class portraits
+        const { cell, gap, radius, border } = t.strip;
+        let x = t.padding + (contentWidth - cellsWidth(legends.length, cell, gap)) / 2;
+        let highlightX = null;
+        for (const legend of legends) {
+            drawPortraitTile(ctx, portraits.get(legend), x, y, cell, { radius, dim: legend !== selected });
+            if (legend === selected) highlightX = x;
+            x += cell + gap;
+        }
+        if (highlightX !== null) drawHighlight(ctx, highlightX, y, cell, radius, border);
 
-        return canvasToBlob(canvas, 'image/jpeg', m.jpegQuality);
+        return toJpeg(canvas);
     }
 
-    // --- Webhook message ---------------------------------------------------
+    /** Theme 2 image: the whole select screen with portraits, grey grid and the rolled legend highlighted. */
+    async function renderFullScreenImage(selected) {
+        const t = CONFIG.discord.themes.detailed;
+        const size = selectScreenSize(t);
+        const { canvas, ctx } = createCanvas(size.width + t.padding * 2, size.height + t.padding * 2);
+        const portraits = await loadPortraits(ALL_LEGENDS);
+
+        let highlight = null;
+        for (const tile of layoutSelectScreen(t, t.padding, t.padding, size.width)) {
+            const isSelected = tile.legend === selected;
+            drawPortraitTile(ctx, portraits.get(tile.legend), tile.x, tile.y, t.cell, {
+                radius: t.radius,
+                dim: !isSelected,
+                border: isSelected ? 0 : t.gridBorder,
+                borderColor: t.gridBorderColor,
+            });
+            if (isSelected) highlight = tile;
+        }
+        if (highlight) drawHighlight(ctx, highlight.x, highlight.y, t.cell, t.radius, t.border);
+
+        return toJpeg(canvas);
+    }
+
+    // ---------------------------------------------------------------------
+    // Discord: themes and message
+    // ---------------------------------------------------------------------
 
     /**
-     * Builds the webhook request body.
-     * One embed per player: name, legend and the legend map image.
+     * Each theme defines the embed text and the images for one player.
+     * `images()` keys are embed fields: `image` (large, below the text) and `thumbnail` (small, on the right).
      */
-    async function buildDiscordRequest(squad) {
-        const sourceUrl = getSourceUrl();
+    const DISCORD_THEMES = {
+        compact: {
+            label: 'Discord: Compact',
+            text: (name, legend) => ({ title: name, description: `**${legend}**` }),
+            images: async legend => ({ image: await renderClassFocusImage(legend) }),
+        },
+        detailed: {
+            label: 'Discord: Detailed',
+            text: (name, legend) => ({ title: `${name}: ${legend}` }),
+            images: async legend => ({ image: await renderFullScreenImage(legend) }),
+        },
+    };
+
+    const currentTheme = () => DISCORD_THEMES[state.discordTheme] ?? DISCORD_THEMES[CONFIG.discord.defaultTheme];
+
+    /** Images depend only on theme + legend, so they are cached between preview and send. */
+    const themeImageCache = new Map();
+
+    function getThemeImages(themeId, legend) {
+        const key = `${themeId}|${legend}`;
+        if (!themeImageCache.has(key)) {
+            const promise = DISCORD_THEMES[themeId].images(legend);
+            promise.catch(() => themeImageCache.delete(key));   // don't cache failures
+            themeImageCache.set(key, promise);
+        }
+        return themeImageCache.get(key);
+    }
+
+    /**
+     * Builds the Discord message for the squad: payload + files to upload.
+     * Falls back to text only if images can't be generated (e.g. page opened via file://).
+     */
+    async function buildDiscordMessage(squad) {
+        const themeId = DISCORD_THEMES[state.discordTheme] ? state.discordTheme : CONFIG.discord.defaultTheme;
+        const theme = DISCORD_THEMES[themeId];
 
         let images = null;
         try {
-            images = await Promise.all(squad.map(({ legend }) => renderLegendMap(legend)));
+            images = await Promise.all(squad.map(({ legend }) => getThemeImages(themeId, legend)));
         } catch (error) {
             console.warn('Images are unavailable, sending text only:', error);
         }
 
-        const mapFile = i => `legend-map-${i + 1}.jpg`;
+        const files = [];
+        const embeds = squad.map(({ player, legend }, i) => {
+            const embed = { color: CONFIG.discord.embedColor, ...theme.text(state.names[player], legend) };
+            for (const [field, blob] of Object.entries(images?.[i] ?? {})) {
+                const name = `${field}-${i + 1}.${blob.type === 'image/png' ? 'png' : 'jpg'}`;
+                files.push({ name, blob });
+                embed[field] = { url: `attachment://${name}` };
+            }
+            return embed;
+        });
 
         const payload = {
             username: CONFIG.discord.username,
             avatar_url: getBaseUrl() + CONFIG.discord.avatarPath,
             // "-#" = small grey subtext; <url> disables the link preview
-            content: `-# [Apex Squad Randomizer](<${sourceUrl}>)`,
-            embeds: squad.map(({ player, legend }, i) => ({
-                title: state.names[player],
-                description: `**${legend}**`,
-                color: CONFIG.discord.embedColor,
-                ...(images && { image: { url: `attachment://${mapFile(i)}` } }),
-            })),
+            content: `-# [Apex Squad Randomizer](<${getSourceUrl()}>)`,
+            embeds,
         };
 
-        if (!images) {
+        return { payload, files, hasImages: images !== null };
+    }
+
+    /** fetch() options for the webhook: JSON, or multipart when there are files. */
+    function toWebhookRequest({ payload, files }) {
+        if (files.length === 0) {
             return { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) };
         }
-
-        const files = images.map((blob, i) => ({ blob, name: mapFile(i) }));
-
-        payload.attachments = files.map(({ name }, id) => ({ id, filename: name }));
         const form = new FormData();
-        form.append('payload_json', JSON.stringify(payload));
+        form.append('payload_json', JSON.stringify({
+            ...payload,
+            attachments: files.map(({ name }, id) => ({ id, filename: name })),
+        }));
         files.forEach(({ blob, name }, id) => form.append(`files[${id}]`, blob, name));
-        return { body: form };   // browser sets the multipart Content-Type itself
+        return { body: form };   // the browser sets the multipart Content-Type itself
     }
 
     async function sendToDiscord() {
@@ -616,14 +711,98 @@
 
         dom.discordBtn.disabled = true;
         try {
-            const request = await buildDiscordRequest(state.lastSquad);
-            const response = await fetch(url, { method: 'POST', ...request });
+            const message = await buildDiscordMessage(state.lastSquad);
+            const response = await fetch(url, { method: 'POST', ...toWebhookRequest(message) });
             alert(response.ok ? 'The squad has been sent to Discord!' : `Discord error: ${response.status}`);
         } catch {
             alert('Network error!');
         } finally {
             dom.discordBtn.disabled = false;
         }
+    }
+
+    // ---------------------------------------------------------------------
+    // Discord: preview (renders exactly what will be sent)
+    // ---------------------------------------------------------------------
+
+    let previewUrls = [];
+    let previewToken = 0;
+    let previewTimer = null;
+
+    /** Minimal Discord markdown for embed text: only **bold** is used by the themes. */
+    function renderMarkdown(text) {
+        return text.split(/(\*\*[^*]+\*\*)/).filter(Boolean).map(part =>
+            (part.startsWith('**') && part.endsWith('**') ? h('strong', {}, part.slice(2, -2)) : part));
+    }
+
+    function renderEmbed(embed, fileUrls) {
+        const fileUrl = field => (embed[field] ? fileUrls.get(embed[field].url.replace('attachment://', '')) : null);
+        const thumbnail = fileUrl('thumbnail');
+        const image = fileUrl('image');
+
+        return h('div', { class: 'dc-embed' },
+            h('div', { class: 'dc-embed-head' },
+                h('div', { class: 'dc-embed-text' },
+                    h('div', { class: 'dc-embed-title' }, embed.title),
+                    embed.description ? h('div', { class: 'dc-embed-desc' }, ...renderMarkdown(embed.description)) : null,
+                ),
+                thumbnail ? h('img', { class: 'dc-embed-thumb', src: thumbnail, alt: '' }) : null,
+            ),
+            image ? h('img', { class: 'dc-embed-image', src: image, alt: '' }) : null,
+        );
+    }
+
+    async function renderPreview() {
+        const token = ++previewToken;
+
+        if (state.lastSquad.length === 0) {
+            dom.previewPanel.hidden = true;
+            return;
+        }
+        dom.previewPanel.hidden = false;
+
+        const message = await buildDiscordMessage(state.lastSquad);
+        if (token !== previewToken) return;   // a newer preview has started meanwhile
+
+        previewUrls.forEach(url => URL.revokeObjectURL(url));
+        previewUrls = [];
+        const fileUrls = new Map(message.files.map(({ name, blob }) => {
+            const url = URL.createObjectURL(blob);
+            previewUrls.push(url);
+            return [name, url];
+        }));
+
+        const { payload } = message;
+        dom.preview.replaceChildren(...[
+            h('div', { class: 'dc-message' },
+                h('img', { class: 'dc-avatar', src: CONFIG.discord.avatarPath, alt: '' }),
+                h('div', { class: 'dc-body' },
+                    h('div', { class: 'dc-header' },
+                        h('span', { class: 'dc-username' }, payload.username),
+                        h('span', { class: 'dc-app-tag' }, 'APP'),
+                    ),
+                    h('div', { class: 'dc-subtext' },
+                        h('a', { href: getSourceUrl(), target: '_blank', rel: 'noopener' }, 'Apex Squad Randomizer'),
+                    ),
+                    ...payload.embeds.map(embed => renderEmbed(embed, fileUrls)),
+                ),
+            ),
+            message.hasImages ? null : h('div', { class: 'dc-note' },
+                'Images are unavailable when the page is opened as a local file — only text will be sent.'),
+        ].filter(Boolean));
+    }
+
+    /** Debounced preview update (e.g. while typing a player name). */
+    function schedulePreview(delay = 300) {
+        clearTimeout(previewTimer);
+        previewTimer = setTimeout(renderPreview, delay);
+    }
+
+    function renderThemeSelect() {
+        dom.discordTheme.replaceChildren(...Object.entries(DISCORD_THEMES).map(([id, theme]) =>
+            h('option', { value: id, selected: id === state.discordTheme }, theme.label)));
+        if (!DISCORD_THEMES[state.discordTheme]) state.discordTheme = CONFIG.discord.defaultTheme;
+        dom.discordTheme.value = state.discordTheme;
     }
 
     // ---------------------------------------------------------------------
@@ -648,6 +827,7 @@
             playerCard(player).querySelector('.player-display-name').textContent = state.names[player];
             persist.names();
             renderResult();
+            schedulePreview();
         });
 
         // Legends a player owns
@@ -669,6 +849,12 @@
             persist.webhook();
         });
 
+        dom.discordTheme.addEventListener('change', () => {
+            state.discordTheme = dom.discordTheme.value;
+            persist.discordTheme();
+            renderPreview();
+        });
+
         dom.rollBtn.addEventListener('click', roll);
         dom.discordBtn.addEventListener('click', sendToDiscord);
     }
@@ -680,6 +866,7 @@
     function init() {
         dom.reserve.value = state.reserve;
         dom.webhook.value = state.webhook;
+        renderThemeSelect();
         renderPlayerToggles();
         renderPlayerCards();
         renderCooldowns();
