@@ -3,6 +3,8 @@
 A tiny static web app that rolls a random legend for every player in an Apex Legends squad
 and can post the result to a Discord channel.
 
+**▶ Open the randomizer: https://rayderua.github.io/apex-legends-squad-randomizer/**
+
 No build step, no backend, no dependencies — just open `index.html` or host the folder anywhere
 (GitHub Pages works great).
 
@@ -16,7 +18,8 @@ No build step, no backend, no dependencies — just open `index.html` or host th
   - full colour, red border — available;
   - grey with a number — rolled recently, the number shows how many rolls until it's back in the pool;
   - dark with a grey "no entry" sign — not in the player's pool.
-- **Discord webhook** — sends the squad as embeds with legend portraits, a class grid and a link back to the randomizer.
+- **Discord webhook** — sends the result: one card per player with a mini map of the legend select screen
+  where the rolled legend is highlighted, so it's easy to find in game.
 - **Everything is saved locally** in the browser (`localStorage`): names, active players, legend pools,
   reserve, roll history and the webhook URL.
 
@@ -43,8 +46,15 @@ any **N − R** consecutive rolls for that player are guaranteed to be different
 2. Paste the URL into the **Discord Webhook URL** field.
 3. Roll a squad and press **SEND TO DISCORD**.
 
-Legend portraits in the message are loaded from the page's URL, so they only show up when the app is
-hosted publicly (e.g. GitHub Pages), not when opened from a local file.
+Each player gets a card with their name, the legend, its portrait on the right and an image of the
+legend select screen with that legend highlighted. The images are drawn in the browser (canvas) and uploaded with the message.
+
+If the page is opened directly from a file (`file://`), browsers block exporting the canvas,
+so the message is sent as text only. Host the page (GitHub Pages, or `python -m http.server` locally)
+to get the images.
+
+The map follows `CONFIG.classes` and `CONFIG.legendMap.rows` in `static/js/app.js`. When a new season
+changes the order on the in-game select screen, update the config so the highlight stays accurate.
 
 > The webhook URL is stored only in your browser, but anyone who has it can post to the channel —
 > don't share it.
@@ -69,6 +79,7 @@ New legends are enabled for all players automatically.
 ## Deployment
 
 Push to GitHub and enable *Settings → Pages → Deploy from a branch → `main` / root*.
+The site is published at https://rayderua.github.io/apex-legends-squad-randomizer/
 
 JS and CSS are loaded with a unique `?v=` query string on every page load, so a new release is picked
 up immediately — there's no need to rename files. Only `index.html` itself may be cached by GitHub Pages

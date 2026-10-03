@@ -43,11 +43,13 @@
         // Must match the in-game order: classes per row, legends in CONFIG.classes order.
         legendMap: {
             rows: [['Assault', 'Skirmisher'], ['Recon', 'Support', 'Controller']],
-            cell: 72,          // portrait size, px
-            gap: 6,            // gap between portraits
-            classGap: 24,      // extra gap between classes
-            padding: 16,
-            radius: 6,
+            cell: 144,         // portrait size, px
+            gap: 12,           // gap between portraits
+            classGapCells: 1,  // empty cells between classes
+            padding: 32,
+            radius: 12,
+            border: 8,         // highlight border width
+            jpegQuality: 0.9,
             background: '#0d0d0d',
             accent: '#ff4b4b',
             dimOverlay: 'rgba(0, 0, 0, 0.7)',
@@ -413,13 +415,38 @@
         return count * cell + (count - 1) * gap;
     }
 
+    /** Space between two classes: gaps around the empty cell(s). */
+    function classGap() {
+        const { cell, gap, classGapCells } = CONFIG.legendMap;
+        return classGapCells * (cell + gap) + gap;
+    }
+
     function rowWidth(row) {
-        return row.reduce((sum, cls) => sum + classWidth(cls), 0) + (row.length - 1) * CONFIG.legendMap.classGap;
+        return row.reduce((sum, cls) => sum + classWidth(cls), 0) + (row.length - 1) * classGap();
+    }
+
+    /** Draws an image into a square, cropping it like CSS object-fit: cover. */
+    function drawCover(ctx, img, x, y, size) {
+        const side = Math.min(img.naturalWidth, img.naturalHeight);
+        const sx = (img.naturalWidth - side) / 2;
+        const sy = (img.naturalHeight - side) / 2;
+        ctx.drawImage(img, sx, sy, side, side, x, y, size, size);
+    }
+
+    function canvasToBlob(canvas, type, quality) {
+        return new Promise((resolve, reject) => {
+            // toBlob throws when the canvas is "tainted" (e.g. page opened via file://)
+            try {
+                canvas.toBlob(blob => (blob ? resolve(blob) : reject(new Error('Empty image'))), type, quality);
+            } catch (error) {
+                reject(error);
+            }
+        });
     }
 
     /**
      * Draws the legend select screen with `selected` highlighted and everyone else dimmed.
-     * Rows are centred, like in the game. Resolves to a PNG Blob.
+     * Rows are centred, like in the game. Resolves to a JPEG Blob.
      */
     async function renderLegendMap(selected) {
         const m = CONFIG.legendMap;
@@ -450,7 +477,7 @@
                     ctx.beginPath();
                     ctx.roundRect(x, y, m.cell, m.cell, m.radius);
                     ctx.clip();
-                    ctx.drawImage(portraits.get(legend), x, y, m.cell, m.cell);
+                    drawCover(ctx, portraits.get(legend), x, y, m.cell);
                     if (legend !== selected) {
                         ctx.fillStyle = m.dimOverlay;
                         ctx.fillRect(x, y, m.cell, m.cell);
@@ -460,46 +487,53 @@
                     if (legend === selected) highlight = { x, y };
                     x += m.cell + m.gap;
                 }
-                x += m.classGap - m.gap;
+                x += classGap() - m.gap;
             });
         });
 
         // Border on top of everything so neighbours don't cover it
         if (highlight) {
+            const half = m.border / 2;
             ctx.strokeStyle = m.accent;
-            ctx.lineWidth = 4;
+            ctx.lineWidth = m.border;
             ctx.beginPath();
-            ctx.roundRect(highlight.x - 2, highlight.y - 2, m.cell + 4, m.cell + 4, m.radius + 2);
+            ctx.roundRect(highlight.x - half, highlight.y - half, m.cell + m.border, m.cell + m.border, m.radius + half);
             ctx.stroke();
         }
 
-        return new Promise((resolve, reject) => {
-            // toBlob throws when the canvas is "tainted" (e.g. page opened via file://)
-            try {
-                canvas.toBlob(blob => (blob ? resolve(blob) : reject(new Error('Empty image'))), 'image/png');
-            } catch (error) {
-                reject(error);
-            }
-        });
+        return canvasToBlob(canvas, 'image/jpeg', m.jpegQuality);
+    }
+
+    /** Square portrait of the rolled legend, shown on the right of the Discord card. */
+    async function renderPortrait(legend) {
+        const img = await loadImage(legendImage(legend));
+        const size = Math.min(img.naturalWidth, img.naturalHeight);
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = size;
+        drawCover(canvas.getContext('2d'), img, 0, 0, size);
+        return canvasToBlob(canvas, 'image/png');
     }
 
     // --- Webhook message ---------------------------------------------------
 
     /**
      * Builds the webhook request body.
-     * One embed per player: name, legend and (if available) the legend map image.
+     * One embed per player: name, legend, portrait on the right and the legend map below.
      */
     async function buildDiscordRequest(squad) {
         const sourceUrl = getSourceUrl();
 
-        let maps = null;
+        // Per player: [legend map, portrait]
+        let images = null;
         try {
-            maps = await Promise.all(squad.map(({ legend }) => renderLegendMap(legend)));
+            images = await Promise.all(squad.map(({ legend }) =>
+                Promise.all([renderLegendMap(legend), renderPortrait(legend)])));
         } catch (error) {
-            console.warn('Legend map images are unavailable, sending text only:', error);
+            console.warn('Images are unavailable, sending text only:', error);
         }
 
-        const fileName = i => `legend-map-${i + 1}.png`;
+        const mapFile = i => `legend-map-${i + 1}.jpg`;
+        const portraitFile = i => `portrait-${i + 1}.png`;
 
         const payload = {
             username: CONFIG.discord.username,
@@ -510,18 +544,26 @@
                 title: state.names[player],
                 description: `**${legend}**`,
                 color: CONFIG.discord.embedColor,
-                ...(maps && { image: { url: `attachment://${fileName(i)}` } }),
+                ...(images && {
+                    thumbnail: { url: `attachment://${portraitFile(i)}` },
+                    image: { url: `attachment://${mapFile(i)}` },
+                }),
             })),
         };
 
-        if (!maps) {
+        if (!images) {
             return { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) };
         }
 
-        payload.attachments = maps.map((_, i) => ({ id: i, filename: fileName(i) }));
+        const files = images.flatMap(([map, portrait], i) => [
+            { blob: map, name: mapFile(i) },
+            { blob: portrait, name: portraitFile(i) },
+        ]);
+
+        payload.attachments = files.map(({ name }, id) => ({ id, filename: name }));
         const form = new FormData();
         form.append('payload_json', JSON.stringify(payload));
-        maps.forEach((blob, i) => form.append(`files[${i}]`, blob, fileName(i)));
+        files.forEach(({ blob, name }, id) => form.append(`files[${id}]`, blob, name));
         return { body: form };   // browser sets the multipart Content-Type itself
     }
 
