@@ -123,6 +123,15 @@ The site is published at https://rayderua.github.io/apex-legends-squad-randomize
 JS and CSS are loaded with a unique `?v=` parameter on every page load, so a new release is picked up
 immediately — no need to rename files. Only `index.html` itself may be cached by GitHub Pages for a few minutes.
 
+## About this project
+
+The randomizer was originally written by hand: the idea, the first working version with player pools,
+duplicate-free squads and the Discord webhook were built without AI.
+
+Later it was polished with the help of an AI assistant (Claude by Anthropic): the no-repeat window,
+the Discord images and themes, the redesign, refactoring and this README. Every change was directed,
+reviewed and tested by the author.
+
 ## License
 
 No license specified yet.
