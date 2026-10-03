@@ -283,17 +283,29 @@
     }
 
     function renderLayout() {
-        dom.reserveValue = h('b');
-        dom.discordStatus = h('b');
         dom.themeName = h('b');
 
-        dom.settingsPanel = renderSettingsPanel();
-        dom.settingsBtn = h('button', { type: 'button', class: 'icon-btn', title: 'Settings', 'aria-label': 'Settings' }, '⚙');
+        dom.reserveInput = h('input', {
+            type: 'number', min: '0', max: '50', value: String(state.reserve), 'aria-label': 'No-repeat reserve',
+        });
+        dom.webhookInput = h('input', {
+            type: 'text', value: state.webhook, placeholder: 'https://discord.com/api/webhooks/…',
+            autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Discord webhook URL',
+        });
+        dom.webhookField = h('label', {
+            class: 'field-inline field-webhook',
+            title: 'Discord: Server Settings → Integrations → Webhooks → Copy Webhook URL. Stored only in this browser.',
+        }, h('span', { class: 'field-label' }, h('i', { class: 'status-dot' }), 'Discord webhook'), dom.webhookInput);
 
         dom.result = h('section', { class: 'hero' });
         dom.rollBtn = h('button', { type: 'button', class: 'btn btn-primary' }, 'RANDOMIZE');
         dom.discordBtn = h('button', { type: 'button', class: 'btn btn-discord' },
             h('span', { class: 'btn-icon' }, '◆'), 'Send to Discord');
+        dom.resetBtn = h('button', {
+            type: 'button',
+            class: 'btn btn-ghost',
+            title: 'Clear the current squad and the roll history (cooldowns). Players, legends and settings are kept.',
+        }, '↺ Reset');
         dom.players = h('section', { class: 'players' });
         dom.toasts = h('div', { class: 'toasts', 'aria-live': 'polite' });
 
@@ -305,16 +317,17 @@
                         h('span', {}, 'APEX ', h('em', {}, 'SQUAD'), ' RANDOMIZER'),
                     ),
                     h('div', { class: 'spacer' }),
-                    h('button', { type: 'button', class: 'chip', title: 'No-repeat settings', onclick: () => toggleSettings(true) },
-                        'No-repeat reserve ', dom.reserveValue),
-                    h('button', { type: 'button', class: 'chip', title: 'Discord webhook settings', onclick: () => toggleSettings(true) },
-                        'Discord ', dom.discordStatus),
+                    h('label', {
+                        class: 'field-inline field-reserve',
+                        title: 'Legends that always stay in the pool. With N legends selected, '
+                            + 'a player gets N − reserve different legends in a row.',
+                    }, h('span', { class: 'field-label' }, 'No-repeat reserve'), dom.reserveInput),
+                    dom.webhookField,
                     h('button', { type: 'button', class: 'chip chip-theme', title: 'Choose how the squad looks in Discord', onclick: openThemePicker },
                         '🎨 Theme: ', dom.themeName),
-                    h('div', { class: 'settings-anchor' }, dom.settingsBtn, dom.settingsPanel),
                 ),
                 dom.result,
-                h('div', { class: 'actions' }, dom.rollBtn, dom.discordBtn),
+                h('div', { class: 'actions' }, dom.rollBtn, dom.discordBtn, dom.resetBtn),
                 dom.players,
                 h('div', { class: 'legend-key' },
                     h('span', {}, h('i', { class: 'key-available' }), 'available'),
@@ -329,55 +342,13 @@
         );
     }
 
-    /** Top bar chips reflect the current settings. */
+    /** Top bar and buttons reflect the current state. */
     function renderStatus() {
-        dom.reserveValue.textContent = state.reserve;
-        const ready = state.webhook.trim() !== '';
-        dom.discordStatus.textContent = ready ? '● ready' : '○ not set';
-        dom.discordStatus.className = ready ? 'ok' : 'muted';
-        dom.themeName.textContent = DISCORD_THEMES[currentThemeId()].label;
+        const themeLabel = DISCORD_THEMES[currentThemeId()].label;
+        dom.themeName.textContent = themeLabel;
+        dom.webhookField.classList.toggle('ready', state.webhook.trim() !== '');
         dom.discordBtn.disabled = state.lastSquad.length === 0;
-        dom.discordBtn.title = state.lastSquad.length ? `Send with the "${DISCORD_THEMES[currentThemeId()].label}" theme` : 'Roll a squad first';
-    }
-
-    // ---------------------------------------------------------------------
-    // UI: settings popover
-    // ---------------------------------------------------------------------
-
-    function renderSettingsPanel() {
-        dom.reserveInput = h('input', { type: 'number', min: '0', max: '50', value: String(state.reserve) });
-        dom.webhookInput = h('input', {
-            type: 'text', value: state.webhook, placeholder: 'https://discord.com/api/webhooks/…', autocomplete: 'off', spellcheck: 'false',
-        });
-
-        dom.reserveInput.addEventListener('change', () => setReserve(dom.reserveInput.value));
-        dom.webhookInput.addEventListener('input', () => {
-            state.webhook = dom.webhookInput.value;
-            persist.webhook();
-            renderStatus();
-        });
-
-        return h('div', { class: 'popover', hidden: true },
-            h('div', { class: 'field' },
-                h('label', {}, 'No-repeat reserve'),
-                h('div', { class: 'field-row' },
-                    dom.reserveInput,
-                    h('button', { type: 'button', class: 'btn btn-small', onclick: resetHistory }, '↺ Reset history'),
-                ),
-                h('p', { class: 'hint' },
-                    'Legends that always stay in the pool. With N legends selected, a player gets N − reserve different legends in a row.'),
-            ),
-            h('div', { class: 'field' },
-                h('label', {}, 'Discord webhook URL'),
-                dom.webhookInput,
-                h('p', { class: 'hint' }, 'Server Settings → Integrations → Webhooks → Copy Webhook URL. Stored only in this browser.'),
-            ),
-        );
-    }
-
-    function toggleSettings(open = dom.settingsPanel.hidden) {
-        dom.settingsPanel.hidden = !open;
-        dom.settingsBtn.classList.toggle('active', open);
+        dom.discordBtn.title = state.lastSquad.length ? `Send with the "${themeLabel}" theme` : 'Roll a squad first';
     }
 
     // ---------------------------------------------------------------------
@@ -558,11 +529,15 @@
         renderStatus();
     }
 
-    function resetHistory() {
+    /** Clears the current squad and roll history (cooldowns); players, legends and settings stay. */
+    function reset() {
         state.history = PLAYER_IDS.map(() => []);
+        state.lastSquad = [];
         storage.remove(STORAGE_KEYS.history);
+        renderResult();
         renderAllCardStates();
-        toast('Roll history has been reset');
+        renderStatus();
+        toast('Squad and roll history have been reset');
     }
 
     // ---------------------------------------------------------------------
@@ -893,7 +868,6 @@
         const url = state.webhook.trim();
         if (!url) {
             toast('Add a Discord webhook URL first', 'error');
-            toggleSettings(true);
             dom.webhookInput.focus();
             return;
         }
@@ -1009,7 +983,14 @@
     function bindEvents() {
         dom.rollBtn.addEventListener('click', roll);
         dom.discordBtn.addEventListener('click', sendToDiscord);
-        dom.settingsBtn.addEventListener('click', () => toggleSettings());
+        dom.resetBtn.addEventListener('click', reset);
+
+        dom.reserveInput.addEventListener('change', () => setReserve(dom.reserveInput.value));
+        dom.webhookInput.addEventListener('input', () => {
+            state.webhook = dom.webhookInput.value;
+            persist.webhook();
+            renderStatus();
+        });
 
         // Player cards: names, on/off switch, owned legends
         dom.players.addEventListener('input', event => {
@@ -1038,15 +1019,9 @@
             }
         });
 
-        // Close popover / modal on outside click and Escape
-        document.addEventListener('click', event => {
-            // Ignore controls that open the popover themselves
-            if (!dom.settingsPanel.hidden && !event.target.closest('.settings-anchor, .chip, .btn-discord')) toggleSettings(false);
-        });
+        // Close the modal with Escape
         document.addEventListener('keydown', event => {
-            if (event.key !== 'Escape') return;
-            if (closeActiveModal) closeActiveModal();
-            else toggleSettings(false);
+            if (event.key === 'Escape') closeActiveModal?.();
         });
     }
 
