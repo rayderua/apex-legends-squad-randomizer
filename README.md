@@ -46,7 +46,7 @@ any **N − R** consecutive rolls for that player are guaranteed to be different
 2. Paste the URL into the **Discord Webhook URL** field.
 3. Roll a squad and press **SEND TO DISCORD**.
 
-Each player gets a card with their name, the legend, its portrait on the right and an image below:
+Each player gets a card with their name, the legend and an image:
 
 - a schematic of the legend select screen with the rolled legend's slot in red — where to click;
 - the legend's class with large portraits, the rolled legend highlighted — easy to recognise.

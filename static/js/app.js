@@ -565,36 +565,23 @@
         return canvasToBlob(canvas, 'image/jpeg', m.jpegQuality);
     }
 
-    /** Square portrait of the rolled legend, shown on the right of the Discord card. */
-    async function renderPortrait(legend) {
-        const img = await loadImage(legendImage(legend));
-        const size = Math.min(img.naturalWidth, img.naturalHeight);
-        const canvas = document.createElement('canvas');
-        canvas.width = canvas.height = size;
-        drawCover(canvas.getContext('2d'), img, 0, 0, size);
-        return canvasToBlob(canvas, 'image/png');
-    }
-
     // --- Webhook message ---------------------------------------------------
 
     /**
      * Builds the webhook request body.
-     * One embed per player: name, legend, portrait on the right and the legend map below.
+     * One embed per player: name, legend and the legend map image.
      */
     async function buildDiscordRequest(squad) {
         const sourceUrl = getSourceUrl();
 
-        // Per player: [legend map, portrait]
         let images = null;
         try {
-            images = await Promise.all(squad.map(({ legend }) =>
-                Promise.all([renderLegendMap(legend), renderPortrait(legend)])));
+            images = await Promise.all(squad.map(({ legend }) => renderLegendMap(legend)));
         } catch (error) {
             console.warn('Images are unavailable, sending text only:', error);
         }
 
         const mapFile = i => `legend-map-${i + 1}.jpg`;
-        const portraitFile = i => `portrait-${i + 1}.png`;
 
         const payload = {
             username: CONFIG.discord.username,
@@ -605,10 +592,7 @@
                 title: state.names[player],
                 description: `**${legend}**`,
                 color: CONFIG.discord.embedColor,
-                ...(images && {
-                    thumbnail: { url: `attachment://${portraitFile(i)}` },
-                    image: { url: `attachment://${mapFile(i)}` },
-                }),
+                ...(images && { image: { url: `attachment://${mapFile(i)}` } }),
             })),
         };
 
@@ -616,10 +600,7 @@
             return { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) };
         }
 
-        const files = images.flatMap(([map, portrait], i) => [
-            { blob: map, name: mapFile(i) },
-            { blob: portrait, name: portraitFile(i) },
-        ]);
+        const files = images.map((blob, i) => ({ blob, name: mapFile(i) }));
 
         payload.attachments = files.map(({ name }, id) => ({ id, filename: name }));
         const form = new FormData();
