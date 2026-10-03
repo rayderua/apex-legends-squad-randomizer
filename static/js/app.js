@@ -37,9 +37,20 @@
             username: 'Apex Squad Bot',
             avatarPath: 'static/images/ApexIcon.png',
             embedColor: 0xFF4B4B,
-            // Layout of the emoji "class grid" shown in each embed
-            gridRows: [['Assault', 'Skirmisher'], ['Recon', 'Support', 'Controller']],
-            gridIndent: '⬛⬛⬛',
+        },
+
+        // Legend select screen layout, used for the per-player "map" image sent to Discord.
+        // Must match the in-game order: classes per row, legends in CONFIG.classes order.
+        legendMap: {
+            rows: [['Assault', 'Skirmisher'], ['Recon', 'Support', 'Controller']],
+            cell: 72,          // portrait size, px
+            gap: 6,            // gap between portraits
+            classGap: 24,      // extra gap between classes
+            padding: 16,
+            radius: 6,
+            background: '#0d0d0d',
+            accent: '#ff4b4b',
+            dimOverlay: 'rgba(0, 0, 0, 0.7)',
         },
     };
 
@@ -378,38 +389,140 @@
         return /^https?:$/.test(window.location.protocol) ? getBaseUrl() : CONFIG.repoUrl;
     }
 
-    /** Emoji grid with the selected legend highlighted inside its class. */
-    function buildClassGrid(selectedLegend) {
-        const { gridRows, gridIndent } = CONFIG.discord;
-        const buildRow = classes => classes
-            .map(cls => CONFIG.classes[cls].map(legend => (legend === selectedLegend ? '🟩' : '✖️')).join(''))
-            .join('⬛');
+    // --- Legend map image (canvas) ---------------------------------------
 
-        const [firstRow, ...otherRows] = gridRows;
-        const lines = [gridIndent + buildRow(firstRow) + gridIndent, ...otherRows.map(buildRow)];
-        return '```\n' + lines.join('\n') + '\n```';
+    const imageCache = new Map();
+
+    /** Loads a portrait once and reuses it for every map. */
+    function loadImage(src) {
+        if (!imageCache.has(src)) {
+            imageCache.set(src, new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(new Error(`Failed to load ${src}`));
+                img.src = src;
+            }));
+        }
+        return imageCache.get(src);
     }
 
-    function buildDiscordPayload(squad) {
-        const baseUrl = getBaseUrl();
+    /** Width of one class block in px. */
+    function classWidth(cls) {
+        const { cell, gap } = CONFIG.legendMap;
+        const count = CONFIG.classes[cls].length;
+        return count * cell + (count - 1) * gap;
+    }
+
+    function rowWidth(row) {
+        return row.reduce((sum, cls) => sum + classWidth(cls), 0) + (row.length - 1) * CONFIG.legendMap.classGap;
+    }
+
+    /**
+     * Draws the legend select screen with `selected` highlighted and everyone else dimmed.
+     * Rows are centred, like in the game. Resolves to a PNG Blob.
+     */
+    async function renderLegendMap(selected) {
+        const m = CONFIG.legendMap;
+        const width = Math.max(...m.rows.map(rowWidth)) + m.padding * 2;
+        const height = m.rows.length * m.cell + (m.rows.length - 1) * m.gap + m.padding * 2;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = m.background;
+        ctx.fillRect(0, 0, width, height);
+
+        const portraits = new Map(await Promise.all(
+            ALL_LEGENDS.map(async legend => [legend, await loadImage(legendImage(legend))]),
+        ));
+
+        let highlight = null;
+
+        m.rows.forEach((row, rowIndex) => {
+            let x = (width - rowWidth(row)) / 2;
+            const y = m.padding + rowIndex * (m.cell + m.gap);
+
+            row.forEach(cls => {
+                for (const legend of CONFIG.classes[cls]) {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.roundRect(x, y, m.cell, m.cell, m.radius);
+                    ctx.clip();
+                    ctx.drawImage(portraits.get(legend), x, y, m.cell, m.cell);
+                    if (legend !== selected) {
+                        ctx.fillStyle = m.dimOverlay;
+                        ctx.fillRect(x, y, m.cell, m.cell);
+                    }
+                    ctx.restore();
+
+                    if (legend === selected) highlight = { x, y };
+                    x += m.cell + m.gap;
+                }
+                x += m.classGap - m.gap;
+            });
+        });
+
+        // Border on top of everything so neighbours don't cover it
+        if (highlight) {
+            ctx.strokeStyle = m.accent;
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.roundRect(highlight.x - 2, highlight.y - 2, m.cell + 4, m.cell + 4, m.radius + 2);
+            ctx.stroke();
+        }
+
+        return new Promise((resolve, reject) => {
+            // toBlob throws when the canvas is "tainted" (e.g. page opened via file://)
+            try {
+                canvas.toBlob(blob => (blob ? resolve(blob) : reject(new Error('Empty image'))), 'image/png');
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    // --- Webhook message ---------------------------------------------------
+
+    /**
+     * Builds the webhook request body.
+     * One embed per player: name, legend and (if available) the legend map image.
+     */
+    async function buildDiscordRequest(squad) {
         const sourceUrl = getSourceUrl();
 
-        // <url> inside a masked link prevents Discord from adding a link preview
-        const sourceLinks = sourceUrl === CONFIG.repoUrl
-            ? `🎲 Rolled with [Apex Squad Randomizer](<${CONFIG.repoUrl}>)`
-            : `🎲 Rolled with [Apex Squad Randomizer](<${sourceUrl}>) · [source code](<${CONFIG.repoUrl}>)`;
+        let maps = null;
+        try {
+            maps = await Promise.all(squad.map(({ legend }) => renderLegendMap(legend)));
+        } catch (error) {
+            console.warn('Legend map images are unavailable, sending text only:', error);
+        }
 
-        return {
+        const fileName = i => `legend-map-${i + 1}.png`;
+
+        const payload = {
             username: CONFIG.discord.username,
-            avatar_url: baseUrl + CONFIG.discord.avatarPath,
-            content: `🚀 **NEW TEAM HAS BEEN FORMED!**\n${sourceLinks}`,
-            embeds: squad.map(({ player, legend }) => ({
+            avatar_url: getBaseUrl() + CONFIG.discord.avatarPath,
+            // "-#" = small grey subtext; <url> disables the link preview
+            content: `-# [Apex Squad Randomizer](<${sourceUrl}>)`,
+            embeds: squad.map(({ player, legend }, i) => ({
                 title: state.names[player],
-                description: `Selected Legend: **${legend}**\n${buildClassGrid(legend)}`,
+                description: `**${legend}**`,
                 color: CONFIG.discord.embedColor,
-                thumbnail: { url: baseUrl + legendImage(legend) },
+                ...(maps && { image: { url: `attachment://${fileName(i)}` } }),
             })),
         };
+
+        if (!maps) {
+            return { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) };
+        }
+
+        payload.attachments = maps.map((_, i) => ({ id: i, filename: fileName(i) }));
+        const form = new FormData();
+        form.append('payload_json', JSON.stringify(payload));
+        maps.forEach((blob, i) => form.append(`files[${i}]`, blob, fileName(i)));
+        return { body: form };   // browser sets the multipart Content-Type itself
     }
 
     async function sendToDiscord() {
@@ -419,11 +532,8 @@
 
         dom.discordBtn.disabled = true;
         try {
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(buildDiscordPayload(state.lastSquad)),
-            });
+            const request = await buildDiscordRequest(state.lastSquad);
+            const response = await fetch(url, { method: 'POST', ...request });
             alert(response.ok ? 'The squad has been sent to Discord!' : `Discord error: ${response.status}`);
         } catch {
             alert('Network error!');
