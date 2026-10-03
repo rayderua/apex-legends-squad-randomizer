@@ -247,17 +247,18 @@
 
     const $ = id => document.getElementById(id);
 
-    /** Tiny element factory: h('div', { class: 'x', dataset: {...} }, child1, 'text', ...) */
+    /** Tiny element factory: h('div', { class: 'x', dataset: {...}, onclick: fn }, child1, 'text', ...) */
     function h(tag, attrs = {}, ...children) {
         const el = document.createElement(tag);
         for (const [key, value] of Object.entries(attrs)) {
             if (value === undefined || value === null || value === false) continue;
             if (key === 'class') el.className = value;
             else if (key === 'dataset') Object.assign(el.dataset, value);
+            else if (key.startsWith('on') && typeof value === 'function') el.addEventListener(key.slice(2), value);
             else if (key in el && typeof value !== 'string') el[key] = value;
             else el.setAttribute(key, value === true ? '' : value);
         }
-        el.append(...children.filter(c => c !== null && c !== undefined));
+        el.append(...children.flat().filter(c => c !== null && c !== undefined && c !== false));
         return el;
     }
 
@@ -266,109 +267,265 @@
     const pluralRolls = n => (n === 1 ? 'roll' : 'rolls');
 
     // ---------------------------------------------------------------------
-    // Rendering
+    // UI: layout
     // ---------------------------------------------------------------------
 
-    const dom = {
-        toggles: $('player-toggles'),
-        players: $('players-container'),
-        result: $('result'),
-        reserve: $('history-reserve'),
-        resetHistory: $('reset-history'),
-        webhook: $('webhook-url'),
-        discordTheme: null,     // created by ensureDiscordControls() if index.html doesn't have them
-        previewPanel: null,
-        preview: null,
-        rollBtn: $('roll-btn'),
-        discordBtn: $('discord-btn'),
-    };
+    const dom = {};
 
-    function renderPlayerToggles() {
-        dom.toggles.replaceChildren(...PLAYER_IDS.map(player => h('div', { class: 'setting-group' },
-            h('input', {
-                type: 'checkbox',
-                class: 'player-active',
-                checked: state.active[player],
-                dataset: { player },
-                title: 'Include player in the roll',
-            }),
-            h('input', {
-                type: 'text',
-                class: 'player-name',
-                value: state.names[player],
-                placeholder: defaultName(player),
-                dataset: { player },
-            }),
-        )));
+    /** Root element. The whole UI is built here, so index.html and app.js can't get out of sync. */
+    function getRoot() {
+        let root = $('app');
+        if (!root) {   // older/cached index.html without #app
+            root = h('div', { id: 'app' });
+            document.body.replaceChildren(root);
+        }
+        return root;
     }
 
-    function renderPlayerCard(player) {
-        const classGroups = Object.entries(CONFIG.classes).map(([cls, legends]) =>
-            h('div', { class: 'class-group' },
-                h('div', { class: 'class-header' }, h('span', {}, CONFIG.classIcons[cls]), ` ${cls}`),
-                h('div', { class: 'legend-grid' }, ...legends.map(legend =>
-                    h('label', { class: 'legend-opt', dataset: { legend } },
-                        h('input', {
-                            type: 'checkbox',
-                            class: 'legend-toggle',
-                            checked: !state.disabled[player].has(legend),
-                            dataset: { player, legend },
-                        }),
-                        h('img', { src: legendImage(legend), alt: legend, title: legend, loading: 'lazy' }),
+    function renderLayout() {
+        dom.reserveValue = h('b');
+        dom.discordStatus = h('b');
+        dom.themeName = h('b');
+
+        dom.settingsPanel = renderSettingsPanel();
+        dom.settingsBtn = h('button', { type: 'button', class: 'icon-btn', title: 'Settings', 'aria-label': 'Settings' }, '⚙');
+
+        dom.result = h('section', { class: 'hero' });
+        dom.rollBtn = h('button', { type: 'button', class: 'btn btn-primary' }, 'RANDOMIZE');
+        dom.discordBtn = h('button', { type: 'button', class: 'btn btn-discord' },
+            h('span', { class: 'btn-icon' }, '◆'), 'Send to Discord');
+        dom.players = h('section', { class: 'players' });
+        dom.toasts = h('div', { class: 'toasts', 'aria-live': 'polite' });
+
+        getRoot().replaceChildren(
+            h('div', { class: 'wrap' },
+                h('header', { class: 'topbar' },
+                    h('div', { class: 'logo' },
+                        h('img', { src: CONFIG.discord.avatarPath, alt: '' }),
+                        h('span', {}, 'APEX ', h('em', {}, 'SQUAD'), ' RANDOMIZER'),
                     ),
-                )),
+                    h('div', { class: 'spacer' }),
+                    h('button', { type: 'button', class: 'chip', title: 'No-repeat settings', onclick: () => toggleSettings(true) },
+                        'No-repeat reserve ', dom.reserveValue),
+                    h('button', { type: 'button', class: 'chip', title: 'Discord webhook settings', onclick: () => toggleSettings(true) },
+                        'Discord ', dom.discordStatus),
+                    h('button', { type: 'button', class: 'chip chip-theme', title: 'Choose how the squad looks in Discord', onclick: openThemePicker },
+                        '🎨 Theme: ', dom.themeName),
+                    h('div', { class: 'settings-anchor' }, dom.settingsBtn, dom.settingsPanel),
+                ),
+                dom.result,
+                h('div', { class: 'actions' }, dom.rollBtn, dom.discordBtn),
+                dom.players,
+                h('div', { class: 'legend-key' },
+                    h('span', {}, h('i', { class: 'key-available' }), 'available'),
+                    h('span', {}, h('i', { class: 'key-cooldown' }), 'cooldown — rolls left'),
+                    h('span', {}, h('i', { class: 'key-off' }), 'not owned — click to toggle'),
+                    h('span', {}, h('i', { class: 'key-last' }), 'last roll'),
+                ),
+                h('footer', { class: 'footer' },
+                    h('a', { href: CONFIG.repoUrl, target: '_blank', rel: 'noopener' }, 'GitHub')),
+            ),
+            dom.toasts,
+        );
+    }
+
+    /** Top bar chips reflect the current settings. */
+    function renderStatus() {
+        dom.reserveValue.textContent = state.reserve;
+        const ready = state.webhook.trim() !== '';
+        dom.discordStatus.textContent = ready ? '● ready' : '○ not set';
+        dom.discordStatus.className = ready ? 'ok' : 'muted';
+        dom.themeName.textContent = DISCORD_THEMES[currentThemeId()].label;
+        dom.discordBtn.disabled = state.lastSquad.length === 0;
+        dom.discordBtn.title = state.lastSquad.length ? `Send with the "${DISCORD_THEMES[currentThemeId()].label}" theme` : 'Roll a squad first';
+    }
+
+    // ---------------------------------------------------------------------
+    // UI: settings popover
+    // ---------------------------------------------------------------------
+
+    function renderSettingsPanel() {
+        dom.reserveInput = h('input', { type: 'number', min: '0', max: '50', value: String(state.reserve) });
+        dom.webhookInput = h('input', {
+            type: 'text', value: state.webhook, placeholder: 'https://discord.com/api/webhooks/…', autocomplete: 'off', spellcheck: 'false',
+        });
+
+        dom.reserveInput.addEventListener('change', () => setReserve(dom.reserveInput.value));
+        dom.webhookInput.addEventListener('input', () => {
+            state.webhook = dom.webhookInput.value;
+            persist.webhook();
+            renderStatus();
+        });
+
+        return h('div', { class: 'popover', hidden: true },
+            h('div', { class: 'field' },
+                h('label', {}, 'No-repeat reserve'),
+                h('div', { class: 'field-row' },
+                    dom.reserveInput,
+                    h('button', { type: 'button', class: 'btn btn-small', onclick: resetHistory }, '↺ Reset history'),
+                ),
+                h('p', { class: 'hint' },
+                    'Legends that always stay in the pool. With N legends selected, a player gets N − reserve different legends in a row.'),
+            ),
+            h('div', { class: 'field' },
+                h('label', {}, 'Discord webhook URL'),
+                dom.webhookInput,
+                h('p', { class: 'hint' }, 'Server Settings → Integrations → Webhooks → Copy Webhook URL. Stored only in this browser.'),
             ),
         );
+    }
 
-        return h('div', {
-            class: `player-card${state.active[player] ? '' : ' disabled'}`,
-            dataset: { player },
-        },
-            h('h2', { class: 'player-display-name' }, state.names[player]),
-            ...classGroups,
+    function toggleSettings(open = dom.settingsPanel.hidden) {
+        dom.settingsPanel.hidden = !open;
+        dom.settingsBtn.classList.toggle('active', open);
+    }
+
+    // ---------------------------------------------------------------------
+    // UI: rolled squad
+    // ---------------------------------------------------------------------
+
+    function renderResult() {
+        const activePlayers = PLAYER_IDS.filter(player => state.active[player]);
+
+        if (state.lastSquad.length === 0) {
+            dom.result.replaceChildren(...activePlayers.map(player =>
+                h('div', { class: 'pick pick-empty' },
+                    h('div', { class: 'pick-info' },
+                        h('div', { class: 'pick-player' }, state.names[player]),
+                        h('div', { class: 'pick-legend' }, 'Ready up?'),
+                    ),
+                ),
+            ));
+            return;
+        }
+
+        dom.result.replaceChildren(...state.lastSquad.map(({ player, legend }) => {
+            const cls = classOf(legend);
+            return h('div', { class: 'pick' },
+                h('img', { src: legendImage(legend), alt: legend }),
+                h('span', { class: 'pick-class' }, `${CONFIG.classIcons[cls]} ${cls}`),
+                h('div', { class: 'pick-info' },
+                    h('div', { class: 'pick-player' }, state.names[player]),
+                    h('div', { class: 'pick-legend' }, legend),
+                ),
+            );
+        }));
+    }
+
+    // ---------------------------------------------------------------------
+    // UI: player cards
+    // ---------------------------------------------------------------------
+
+    function renderPlayerCard(player) {
+        const classGroups = Object.entries(CONFIG.classes).map(([cls, legends]) => [
+            h('div', { class: 'cls-label' }, `${CONFIG.classIcons[cls]} ${cls}`),
+            h('div', { class: 'grid' }, ...legends.map(legend =>
+                h('label', { class: 'tile', dataset: { legend } },
+                    h('input', {
+                        type: 'checkbox',
+                        class: 'legend-toggle',
+                        checked: !state.disabled[player].has(legend),
+                        dataset: { player, legend },
+                    }),
+                    h('img', { src: legendImage(legend), alt: legend, loading: 'lazy' }),
+                ),
+            )),
+        ]);
+
+        return h('div', { class: 'card', dataset: { player } },
+            h('div', { class: 'card-head' },
+                h('input', {
+                    type: 'text',
+                    class: 'name',
+                    value: state.names[player],
+                    placeholder: defaultName(player),
+                    maxlength: '24',
+                    title: 'Player name',
+                    dataset: { player },
+                }),
+                h('span', { class: 'count' }),
+                h('label', { class: 'switch', title: 'Include player in the roll' },
+                    h('input', { type: 'checkbox', class: 'player-active', checked: state.active[player], dataset: { player } }),
+                    h('span'),
+                ),
+            ),
+            ...classGroups.flat(),
         );
     }
 
     function renderPlayerCards() {
         dom.players.replaceChildren(...PLAYER_IDS.map(renderPlayerCard));
+        PLAYER_IDS.forEach(renderCardState);
     }
 
-    const playerCard = player => dom.players.querySelector(`.player-card[data-player="${player}"]`);
+    const playerCard = player => dom.players.querySelector(`.card[data-player="${player}"]`);
 
-    /** Marks legends on cooldown (grey + rolls-left counter) for every player. */
-    function renderCooldowns() {
-        for (const player of PLAYER_IDS) {
-            const cooldowns = getCooldowns(player, getPool(player));
+    /** Tile states (owned / cooldown / last roll), counter and active state of one player card. */
+    function renderCardState(player) {
+        const card = playerCard(player);
+        const pool = getPool(player);
+        const cooldowns = getCooldowns(player, pool);
+        const lastLegend = state.lastSquad.find(pick => pick.player === player)?.legend;
 
-            playerCard(player).querySelectorAll('.legend-opt').forEach(opt => {
-                const legend = opt.dataset.legend;
-                const img = opt.querySelector('img');
-                const rollsLeft = cooldowns.get(legend);   // undefined for unchecked legends too
+        card.classList.toggle('inactive', !state.active[player]);
+        card.querySelector('.count').textContent = `${pool.length}/${ALL_LEGENDS.length}`;
 
-                opt.classList.toggle('blocked', rollsLeft !== undefined);
-                if (rollsLeft !== undefined) {
-                    opt.dataset.cd = rollsLeft;
-                    img.title = `${legend} — rolled recently, back in the pool in ${rollsLeft} ${pluralRolls(rollsLeft)}`;
-                } else {
-                    delete opt.dataset.cd;
-                    img.title = legend;
-                }
-            });
-        }
+        card.querySelectorAll('.tile').forEach(tile => {
+            const legend = tile.dataset.legend;
+            const owned = !state.disabled[player].has(legend);
+            const rollsLeft = owned ? cooldowns.get(legend) : undefined;
+
+            tile.classList.toggle('off', !owned);
+            tile.classList.toggle('cd', rollsLeft !== undefined);
+            tile.classList.toggle('last', legend === lastLegend);
+
+            if (rollsLeft !== undefined) {
+                tile.dataset.cd = rollsLeft;
+                tile.title = `${legend} — rolled recently, back in the pool in ${rollsLeft} ${pluralRolls(rollsLeft)}`;
+            } else {
+                delete tile.dataset.cd;
+                tile.title = owned ? legend : `${legend} — not owned (click to add)`;
+            }
+        });
     }
 
-    function renderResult() {
-        if (state.lastSquad.length === 0) {
-            dom.result.replaceChildren(h('div', { class: 'placeholder-text' }, 'READY UP?'));
-            return;
-        }
-        dom.result.replaceChildren(...state.lastSquad.map(({ player, legend }) =>
-            h('div', { class: 'res-item' },
-                h('img', { src: legendImage(legend), alt: legend }),
-                h('div', { class: 'res-name' }, legend),
-                h('div', { class: 'res-player' }, state.names[player]),
+    const renderAllCardStates = () => PLAYER_IDS.forEach(renderCardState);
+
+    // ---------------------------------------------------------------------
+    // UI: toasts and modal
+    // ---------------------------------------------------------------------
+
+    function toast(message, type = 'info') {
+        const el = h('div', { class: `toast toast-${type}` }, message);
+        dom.toasts.append(el);
+        setTimeout(() => el.classList.add('hide'), 2600);
+        setTimeout(() => el.remove(), 3000);
+    }
+
+    let closeActiveModal = null;
+
+    function openModal(title, body, { onClose } = {}) {
+        closeActiveModal?.();
+
+        const backdrop = h('div', { class: 'backdrop' });
+        const close = () => {
+            backdrop.remove();
+            closeActiveModal = null;
+            onClose?.();
+        };
+        backdrop.addEventListener('click', event => {
+            if (event.target === backdrop) close();
+        });
+        backdrop.append(h('div', { class: 'modal', role: 'dialog', 'aria-label': title },
+            h('div', { class: 'modal-head' },
+                h('h3', {}, title),
+                h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Close', onclick: close }, '✕'),
             ),
+            body,
         ));
+        document.body.append(backdrop);
+        closeActiveModal = close;
+        return close;
     }
 
     // ---------------------------------------------------------------------
@@ -377,31 +534,35 @@
 
     function roll() {
         const players = PLAYER_IDS.filter(player => state.active[player]);
-        if (players.length === 0) return alert('Choose at least one player!');
-        if (players.some(player => getPool(player).length === 0)) return alert('Choose at least one legend!');
+        if (players.length === 0) return toast('Turn on at least one player', 'error');
+        if (players.some(player => getPool(player).length === 0)) return toast('Every active player needs at least one legend', 'error');
 
         const squad = pickSquad(players);
-        if (!squad) return alert("Can't build a squad without duplicates!");
+        if (!squad) return toast("Can't build a squad without duplicates", 'error');
 
         addToHistory(squad);
         state.lastSquad = squad;
         renderResult();
-        renderCooldowns();
-        renderPreview();
-        dom.discordBtn.hidden = false;
+        renderAllCardStates();
+        renderStatus();
+
+        // Warm up Discord images in the background so sending is instant
+        squad.forEach(({ legend }) => getThemeImages(currentThemeId(), legend).catch(() => {}));
     }
 
     function setReserve(value) {
         state.reserve = parseReserve(value);
-        dom.reserve.value = state.reserve;
+        dom.reserveInput.value = state.reserve;
         persist.reserve();
-        renderCooldowns();
+        renderAllCardStates();
+        renderStatus();
     }
 
     function resetHistory() {
         state.history = PLAYER_IDS.map(() => []);
         storage.remove(STORAGE_KEYS.history);
-        renderCooldowns();
+        renderAllCardStates();
+        toast('Roll history has been reset');
     }
 
     // ---------------------------------------------------------------------
@@ -430,7 +591,10 @@
             imageCache.set(src, new Promise((resolve, reject) => {
                 const img = new Image();
                 img.onload = () => resolve(img);
-                img.onerror = () => reject(new Error(`Failed to load ${src}`));
+                img.onerror = () => {
+                    imageCache.delete(src);   // allow a retry later
+                    reject(new Error(`Failed to load ${src}`));
+                };
                 img.src = src;
             }));
         }
@@ -488,9 +652,19 @@
         return { canvas, ctx };
     }
 
-    function roundRectPath(ctx, x, y, size, radius) {
+    /**
+     * Rounded rectangle path. Own implementation instead of the canvas roundRect() method,
+     * which is missing in older Safari (< 16) and Firefox (< 112).
+     */
+    function roundRectPath(ctx, x, y, width, height = width, radius = 0) {
+        const r = Math.max(0, Math.min(radius, width / 2, height / 2));
         ctx.beginPath();
-        ctx.roundRect(x, y, size, size, radius);
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + width, y, x + width, y + height, r);
+        ctx.arcTo(x + width, y + height, x, y + height, r);
+        ctx.arcTo(x, y + height, x, y, r);
+        ctx.arcTo(x, y, x + width, y, r);
+        ctx.closePath();
     }
 
     /** Draws an image into a square, cropping it like CSS object-fit: cover. */
@@ -504,7 +678,7 @@
     /** Rounded portrait; optionally dimmed and with an inner border. */
     function drawPortraitTile(ctx, img, x, y, size, { radius, dim = false, border = 0, borderColor = null }) {
         ctx.save();
-        roundRectPath(ctx, x, y, size, radius);
+        roundRectPath(ctx, x, y, size, size, radius);
         ctx.clip();
         drawCover(ctx, img, x, y, size);
         if (dim) {
@@ -517,8 +691,7 @@
             const half = border / 2;
             ctx.strokeStyle = borderColor;
             ctx.lineWidth = border;
-            ctx.beginPath();
-            ctx.roundRect(x + half, y + half, size - border, size - border, Math.max(0, radius - half));
+            roundRectPath(ctx, x + half, y + half, size - border, size - border, radius - half);
             ctx.stroke();
         }
     }
@@ -528,8 +701,7 @@
         const half = width / 2;
         ctx.strokeStyle = CONFIG.discord.image.accent;
         ctx.lineWidth = width;
-        ctx.beginPath();
-        ctx.roundRect(x - half, y - half, size + width, size + width, radius + half);
+        roundRectPath(ctx, x - half, y - half, size + width, size + width, radius + half);
         ctx.stroke();
     }
 
@@ -567,7 +739,7 @@
         let y = t.padding;
         for (const tile of layoutSelectScreen(t.overview, t.padding, y, contentWidth)) {
             ctx.fillStyle = tile.legend === selected ? CONFIG.discord.image.accent : t.overview.color;
-            roundRectPath(ctx, tile.x, tile.y, t.overview.cell, t.overview.radius);
+            roundRectPath(ctx, tile.x, tile.y, t.overview.cell, t.overview.cell, t.overview.radius);
             ctx.fill();
         }
         y += overview.height;
@@ -627,20 +799,22 @@
      */
     const DISCORD_THEMES = {
         compact: {
-            label: 'Discord: Compact',
+            label: 'Compact',
+            description: 'Select-screen map + big portraits of the class. Easy to read on phones.',
             text: (name, legend) => ({ title: name, description: `**${legend}**` }),
             images: async legend => ({ image: await renderClassFocusImage(legend) }),
         },
         detailed: {
-            label: 'Discord: Detailed',
+            label: 'Detailed',
+            description: 'The whole select screen with portraits, exactly as in game.',
             text: (name, legend) => ({ title: `${name}: ${legend}` }),
             images: async legend => ({ image: await renderFullScreenImage(legend) }),
         },
     };
 
-    const currentTheme = () => DISCORD_THEMES[state.discordTheme] ?? DISCORD_THEMES[CONFIG.discord.defaultTheme];
+    const currentThemeId = () => (DISCORD_THEMES[state.discordTheme] ? state.discordTheme : CONFIG.discord.defaultTheme);
 
-    /** Images depend only on theme + legend, so they are cached between preview and send. */
+    /** Images depend only on theme + legend, so they are cached between theme previews and sending. */
     const themeImageCache = new Map();
 
     function getThemeImages(themeId, legend) {
@@ -657,14 +831,15 @@
      * Builds the Discord message for the squad: payload + files to upload.
      * Falls back to text only if images can't be generated (e.g. page opened via file://).
      */
-    async function buildDiscordMessage(squad) {
-        const themeId = DISCORD_THEMES[state.discordTheme] ? state.discordTheme : CONFIG.discord.defaultTheme;
+    async function buildDiscordMessage(squad, themeId = currentThemeId()) {
         const theme = DISCORD_THEMES[themeId];
 
         let images = null;
+        let imageError = null;
         try {
             images = await Promise.all(squad.map(({ legend }) => getThemeImages(themeId, legend)));
         } catch (error) {
+            imageError = describeImageError(error);
             console.warn('Images are unavailable, sending text only:', error);
         }
 
@@ -687,7 +862,16 @@
             embeds,
         };
 
-        return { payload, files, hasImages: images !== null };
+        return { payload, files, imageError };
+    }
+
+    /** Human-readable reason why Discord images couldn't be generated. */
+    function describeImageError(error) {
+        if (window.location.protocol === 'file:') {
+            return 'Images need the page opened over http(s) — e.g. GitHub Pages or a local server. '
+                + 'Browsers block them for pages opened as a local file.';
+        }
+        return `Images couldn't be generated: ${error?.message || error}`;
     }
 
     /** fetch() options for the webhook: JSON, or multipart when there are files. */
@@ -705,29 +889,34 @@
     }
 
     async function sendToDiscord() {
+        if (state.lastSquad.length === 0) return toast('Roll a squad first', 'error');
         const url = state.webhook.trim();
-        if (!url) return alert('Insert Discord webhook URL!');
-        if (state.lastSquad.length === 0) return alert('Roll a squad first!');
+        if (!url) {
+            toast('Add a Discord webhook URL first', 'error');
+            toggleSettings(true);
+            dom.webhookInput.focus();
+            return;
+        }
 
         dom.discordBtn.disabled = true;
+        dom.discordBtn.classList.add('loading');
         try {
             const message = await buildDiscordMessage(state.lastSquad);
             const response = await fetch(url, { method: 'POST', ...toWebhookRequest(message) });
-            alert(response.ok ? 'The squad has been sent to Discord!' : `Discord error: ${response.status}`);
+            if (response.ok && message.imageError) toast('Sent to Discord without images — see the theme window for details', 'error');
+            else if (response.ok) toast('Sent to Discord', 'success');
+            else toast(`Discord error: ${response.status}`, 'error');
         } catch {
-            alert('Network error!');
+            toast('Network error', 'error');
         } finally {
-            dom.discordBtn.disabled = false;
+            dom.discordBtn.classList.remove('loading');
+            renderStatus();
         }
     }
 
     // ---------------------------------------------------------------------
-    // Discord: preview (renders exactly what will be sent)
+    // Theme picker: previews of every theme, click to choose
     // ---------------------------------------------------------------------
-
-    let previewUrls = [];
-    let previewToken = 0;
-    let previewTimer = null;
 
     /** Minimal Discord markdown for embed text: only **bold** is used by the themes. */
     function renderMarkdown(text) {
@@ -735,6 +924,7 @@
             (part.startsWith('**') && part.endsWith('**') ? h('strong', {}, part.slice(2, -2)) : part));
     }
 
+    /** Discord-like embed; `fileUrls` maps attachment names to object URLs. */
     function renderEmbed(embed, fileUrls) {
         const fileUrl = field => (embed[field] ? fileUrls.get(embed[field].url.replace('attachment://', '')) : null);
         const thumbnail = fileUrl('thumbnail');
@@ -742,9 +932,9 @@
 
         return h('div', { class: 'dc-embed' },
             h('div', { class: 'dc-embed-head' },
-                h('div', { class: 'dc-embed-text' },
+                h('div', {},
                     h('div', { class: 'dc-embed-title' }, embed.title),
-                    embed.description ? h('div', { class: 'dc-embed-desc' }, ...renderMarkdown(embed.description)) : null,
+                    embed.description ? h('div', { class: 'dc-embed-desc' }, renderMarkdown(embed.description)) : null,
                 ),
                 thumbnail ? h('img', { class: 'dc-embed-thumb', src: thumbnail, alt: '' }) : null,
             ),
@@ -752,81 +942,64 @@
         );
     }
 
-    async function renderPreview() {
-        const token = ++previewToken;
-
-        if (state.lastSquad.length === 0) {
-            dom.previewPanel.hidden = true;
-            return;
-        }
-        dom.previewPanel.hidden = false;
-
-        const message = await buildDiscordMessage(state.lastSquad);
-        if (token !== previewToken) return;   // a newer preview has started meanwhile
-
-        previewUrls.forEach(url => URL.revokeObjectURL(url));
-        previewUrls = [];
+    /** Discord message mock with one embed: shows how a theme looks. */
+    async function renderThemePreview(themeId, sample, objectUrls) {
+        const message = await buildDiscordMessage([sample], themeId);
         const fileUrls = new Map(message.files.map(({ name, blob }) => {
             const url = URL.createObjectURL(blob);
-            previewUrls.push(url);
+            objectUrls.push(url);
             return [name, url];
         }));
 
-        const { payload } = message;
-        dom.preview.replaceChildren(...[
-            h('div', { class: 'dc-message' },
-                h('img', { class: 'dc-avatar', src: CONFIG.discord.avatarPath, alt: '' }),
-                h('div', { class: 'dc-body' },
-                    h('div', { class: 'dc-header' },
-                        h('span', { class: 'dc-username' }, payload.username),
-                        h('span', { class: 'dc-app-tag' }, 'APP'),
-                    ),
-                    h('div', { class: 'dc-subtext' },
-                        h('a', { href: getSourceUrl(), target: '_blank', rel: 'noopener' }, 'Apex Squad Randomizer'),
-                    ),
-                    ...payload.embeds.map(embed => renderEmbed(embed, fileUrls)),
+        return h('div', { class: 'dc-message' },
+            h('img', { class: 'dc-avatar', src: CONFIG.discord.avatarPath, alt: '' }),
+            h('div', { class: 'dc-body' },
+                h('div', { class: 'dc-header' },
+                    h('span', { class: 'dc-username' }, message.payload.username),
+                    h('span', { class: 'dc-app-tag' }, 'APP'),
                 ),
+                h('div', { class: 'dc-subtext' }, 'Apex Squad Randomizer'),
+                ...message.payload.embeds.map(embed => renderEmbed(embed, fileUrls)),
+                message.imageError ? h('p', { class: 'hint hint-warning' }, message.imageError) : null,
             ),
-            message.hasImages ? null : h('div', { class: 'dc-note' },
-                'Images are unavailable when the page is opened as a local file — only text will be sent.'),
-        ].filter(Boolean));
+        );
     }
 
-    /** Debounced preview update (e.g. while typing a player name). */
-    function schedulePreview(delay = 300) {
-        clearTimeout(previewTimer);
-        previewTimer = setTimeout(renderPreview, delay);
-    }
+    function openThemePicker() {
+        // Preview with the current roll if there is one, otherwise with a sample legend
+        const sample = state.lastSquad[0] ?? { player: PLAYER_IDS.find(p => state.active[p]) ?? 0, legend: 'Bloodhound' };
+        const objectUrls = [];
 
-    /**
-     * Theme selector and preview panel were added later. If an older (e.g. cached) index.html
-     * doesn't contain them, create them here so the page still works.
-     */
-    function ensureDiscordControls() {
-        dom.discordTheme = $('discord-theme');
-        if (!dom.discordTheme) {
-            dom.discordTheme = h('select', { id: 'discord-theme', title: 'How the squad looks in Discord' });
-            dom.webhook.after(dom.discordTheme);
-        }
+        const options = Object.entries(DISCORD_THEMES).map(([id, theme]) => {
+            const preview = h('div', { class: 'theme-preview' }, h('div', { class: 'skeleton' }));
+            renderThemePreview(id, sample, objectUrls)
+                .then(node => preview.replaceChildren(node))
+                .catch(error => preview.replaceChildren(
+                    h('p', { class: 'hint hint-warning' }, `Preview is unavailable: ${error?.message || error}`)));
 
-        dom.previewPanel = $('discord-preview-panel');
-        dom.preview = $('discord-preview');
-        if (!dom.previewPanel || !dom.preview) {
-            dom.previewPanel?.remove();
-            dom.preview = h('div', { id: 'discord-preview', class: 'discord-preview' });
-            dom.previewPanel = h('details', { id: 'discord-preview-panel', class: 'discord-preview-panel', open: true, hidden: true },
-                h('summary', {}, 'Discord preview'),
-                dom.preview,
+            return h('button', {
+                type: 'button',
+                class: `theme-option${id === currentThemeId() ? ' selected' : ''}`,
+                onclick: () => {
+                    state.discordTheme = id;
+                    persist.discordTheme();
+                    renderStatus();
+                    closeModal();
+                    toast(`Theme: ${theme.label}`, 'success');
+                },
+            },
+                h('div', { class: 'theme-option-head' },
+                    h('span', { class: 'theme-name' }, theme.label),
+                    h('span', { class: 'theme-check' }, '✓ selected'),
+                ),
+                h('p', { class: 'hint' }, theme.description),
+                preview,
             );
-            dom.players.before(dom.previewPanel);
-        }
-    }
+        });
 
-    function renderThemeSelect() {
-        dom.discordTheme.replaceChildren(...Object.entries(DISCORD_THEMES).map(([id, theme]) =>
-            h('option', { value: id, selected: id === state.discordTheme }, theme.label)));
-        if (!DISCORD_THEMES[state.discordTheme]) state.discordTheme = CONFIG.discord.defaultTheme;
-        dom.discordTheme.value = state.discordTheme;
+        const closeModal = openModal('Discord theme', h('div', { class: 'theme-options' }, ...options), {
+            onClose: () => objectUrls.forEach(url => URL.revokeObjectURL(url)),
+        });
     }
 
     // ---------------------------------------------------------------------
@@ -834,53 +1007,47 @@
     // ---------------------------------------------------------------------
 
     function bindEvents() {
-        // Player on/off
-        dom.toggles.addEventListener('change', event => {
-            if (!event.target.matches('.player-active')) return;
-            const player = Number(event.target.dataset.player);
-            state.active[player] = event.target.checked;
-            playerCard(player).classList.toggle('disabled', !state.active[player]);
-            persist.active();
-        });
-
-        // Player names
-        dom.toggles.addEventListener('input', event => {
-            if (!event.target.matches('.player-name')) return;
-            const player = Number(event.target.dataset.player);
-            state.names[player] = event.target.value.trim() || defaultName(player);
-            playerCard(player).querySelector('.player-display-name').textContent = state.names[player];
-            persist.names();
-            renderResult();
-            schedulePreview();
-        });
-
-        // Legends a player owns
-        dom.players.addEventListener('change', event => {
-            if (!event.target.matches('.legend-toggle')) return;
-            const { player, legend } = event.target.dataset;
-            const disabled = state.disabled[Number(player)];
-            if (event.target.checked) disabled.delete(legend);
-            else disabled.add(legend);
-            persist.disabled();
-            renderCooldowns();
-        });
-
-        dom.reserve.addEventListener('change', () => setReserve(dom.reserve.value));
-        dom.resetHistory.addEventListener('click', resetHistory);
-
-        dom.webhook.addEventListener('input', () => {
-            state.webhook = dom.webhook.value;
-            persist.webhook();
-        });
-
-        dom.discordTheme.addEventListener('change', () => {
-            state.discordTheme = dom.discordTheme.value;
-            persist.discordTheme();
-            renderPreview();
-        });
-
         dom.rollBtn.addEventListener('click', roll);
         dom.discordBtn.addEventListener('click', sendToDiscord);
+        dom.settingsBtn.addEventListener('click', () => toggleSettings());
+
+        // Player cards: names, on/off switch, owned legends
+        dom.players.addEventListener('input', event => {
+            if (!event.target.matches('.name')) return;
+            const player = Number(event.target.dataset.player);
+            state.names[player] = event.target.value.trim() || defaultName(player);
+            persist.names();
+            renderResult();
+        });
+
+        dom.players.addEventListener('change', event => {
+            const { target } = event;
+            const player = Number(target.dataset.player);
+
+            if (target.matches('.player-active')) {
+                state.active[player] = target.checked;
+                persist.active();
+                renderCardState(player);
+                if (state.lastSquad.length === 0) renderResult();
+            } else if (target.matches('.legend-toggle')) {
+                const disabled = state.disabled[player];
+                if (target.checked) disabled.delete(target.dataset.legend);
+                else disabled.add(target.dataset.legend);
+                persist.disabled();
+                renderCardState(player);
+            }
+        });
+
+        // Close popover / modal on outside click and Escape
+        document.addEventListener('click', event => {
+            // Ignore controls that open the popover themselves
+            if (!dom.settingsPanel.hidden && !event.target.closest('.settings-anchor, .chip, .btn-discord')) toggleSettings(false);
+        });
+        document.addEventListener('keydown', event => {
+            if (event.key !== 'Escape') return;
+            if (closeActiveModal) closeActiveModal();
+            else toggleSettings(false);
+        });
     }
 
     // ---------------------------------------------------------------------
@@ -888,16 +1055,10 @@
     // ---------------------------------------------------------------------
 
     function init() {
-        // Core UI first: players must render even if an optional feature fails
-        dom.reserve.value = state.reserve;
-        dom.webhook.value = state.webhook;
-        renderPlayerToggles();
+        renderLayout();
         renderPlayerCards();
-        renderCooldowns();
         renderResult();
-
-        ensureDiscordControls();
-        renderThemeSelect();
+        renderStatus();
         bindEvents();
     }
 

@@ -10,16 +10,18 @@ No build step, no backend, no dependencies — just open `index.html` or host th
 
 ## Features
 
-- **Up to 3 players** — each can be switched on/off and renamed.
-- **Per-player legend pool** — untick the legends a player doesn't own (or doesn't want to play).
+- **Up to 3 players** — rename a player right in the card header, the switch turns them on/off.
+- **Per-player legend pool** — click a portrait to mark legends a player doesn't own (or doesn't want to play).
 - **No duplicates in a squad** — two players never get the same legend.
 - **No-repeat window** — a player won't get the same legend again too soon (see below).
 - **Clear tile states**
-  - full colour, red border — available;
+  - full colour — available;
   - grey with a number — rolled recently, the number shows how many rolls until it's back in the pool;
-  - dark with a grey "no entry" sign — not in the player's pool.
+  - dark with a grey "no entry" sign — not in the player's pool;
+  - red outline — rolled in the last roll.
 - **Discord webhook** — sends the result: one card per player with an image of the legend select screen
   where the rolled legend is highlighted, so it's easy to find in game. Two themes, with a live preview.
+- **One-click flow** — set up players and a theme once, then just *Randomize → Send to Discord*.
 - **Everything is saved locally** in the browser (`localStorage`): names, active players, legend pools,
   reserve, roll history and the webhook URL.
 
@@ -37,18 +39,18 @@ any **N − R** consecutive rolls for that player are guaranteed to be different
 
 - **Reserve** is the number of legends that always stay available — a higher value means more randomness,
   a lower value means more rotation.
-- **↺** resets the roll history for all players.
+- Reserve and **↺ Reset history** are in the settings (⚙ in the top bar).
 - Unticking a legend doesn't break the guarantee: history only counts legends that are currently in the pool.
 
 ## Discord
 
 1. In Discord: *Server Settings → Integrations → Webhooks → New Webhook*, choose a channel, *Copy Webhook URL*.
-2. Paste the URL into the **Discord Webhook URL** field.
-3. Roll a squad and press **SEND TO DISCORD**.
+2. Open the settings (⚙ in the top bar) and paste the URL into **Discord webhook URL**.
+3. Pick a look with **🎨 Theme** — it shows a preview of every theme; click one to select it.
+4. Roll a squad and press **Send to Discord** — it's sent right away with the selected theme.
 
-Choose how the message looks with the **Discord theme** selector next to the webhook field.
-After a roll, the **Discord preview** panel shows exactly what will be sent with the selected theme
-(same images, same sizes as in Discord).
+The **🎨 Theme** window shows each theme as it will look in Discord (same images and sizes),
+using your last roll or a sample legend.
 
 | Theme | Card text | Image |
 |-------|-----------|-------|
@@ -71,8 +73,8 @@ changes the order on the in-game select screen, update the config so the highlig
 ## Project structure
 
 ```
-index.html            page markup
-static/js/app.js      all logic: config, state, randomizer, rendering, Discord
+index.html            page shell (the UI itself is rendered by app.js)
+static/js/app.js      all logic: config, state, randomizer, UI, Discord
 static/css/style.css  styles
 static/images/        legend portraits (Portrait_<Name>_square.png) and the app icon
 ```

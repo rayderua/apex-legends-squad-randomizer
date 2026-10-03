@@ -6,7 +6,11 @@
     <title>Apex Squad Randomizer</title>
     <meta name="referrer" content="no-referrer">
     <meta http-equiv="Cache-Control" content="no-cache">
+    <meta name="theme-color" content="#0b0d12">
     <link rel="icon" href="static/images/ApexIcon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
     <script>
         // Cache busting: append a unique query string to JS/CSS so the browser
         // always fetches the latest version after a release (no file renaming needed).
@@ -16,41 +20,8 @@
 </head>
 <body>
 
-<div class="container">
-    <!-- Top bar: players, no-repeat settings, Discord webhook -->
-    <div class="settings-bar">
-        <div id="player-toggles" class="player-toggles"></div>
-
-        <div class="setting-group"
-             title="How many legends always stay in the pool. With N selected legends you get N - reserve different legends in a row.">
-            <label for="history-reserve">Reserve</label>
-            <input type="number" id="history-reserve" min="0" max="50">
-            <button type="button" id="reset-history" class="reset-btn" title="Reset roll history">↺</button>
-        </div>
-
-        <input type="text" id="webhook-url" placeholder="Discord Webhook URL" autocomplete="off">
-        <select id="discord-theme" title="How the squad looks in Discord"></select>
-    </div>
-
-    <!-- Rolled squad -->
-    <div id="result" class="result-zone">
-        <div class="placeholder-text">READY UP?</div>
-    </div>
-
-    <div class="btn-group">
-        <button type="button" id="roll-btn" class="roll-btn">RANDOMIZE</button>
-        <button type="button" id="discord-btn" class="discord-btn" hidden>SEND TO DISCORD</button>
-    </div>
-
-    <!-- What will be sent to Discord (shown after the first roll) -->
-    <details id="discord-preview-panel" class="discord-preview-panel" open hidden>
-        <summary>Discord preview</summary>
-        <div id="discord-preview" class="discord-preview"></div>
-    </details>
-
-    <!-- Per-player legend pools -->
-    <div id="players-container" class="players-row"></div>
-</div>
+<!-- The whole UI is rendered by static/js/app.js -->
+<div id="app"></div>
 
 <script>document.write('<script src="static/js/app.js?v=' + ASSET_VER + '"><\/script>');</script>
 

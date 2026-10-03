@@ -3,21 +3,24 @@
    ===================================================================== */
 
 :root {
-    --apex-red: #ff4b4b;
-    --accent-blue: #00d4ff;
+    --bg: #0b0d12;
+    --surface: #141821;
+    --surface-2: #1b202b;
+    --line: #262c39;
+    --text: #e8eaf0;
+    --muted: #8a91a3;
+    --accent: #ff4655;
+    --accent-glow: rgba(255, 70, 85, 0.35);
     --discord: #5865f2;
+    --ok: #3ba55d;
 
-    --bg: #0d0d0d;
-    --panel-bg: #111;
-    --card-bg: #161616;
-    --control-bg: #1a1a1a;
-    --input-bg: #222;
+    --radius-lg: 18px;
+    --radius: 12px;
+    --radius-sm: 8px;
 
-    --border: #333;
-    --border-input: #444;
-    --muted: #666;
+    --font: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 
-    /* Grey "no entry" sign for legends a player doesn't have */
+    /* Grey "no entry" sign for legends a player doesn't own */
     --no-entry-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='none' stroke='%23999' stroke-width='9'/%3E%3Cline x1='22' y1='22' x2='78' y2='78' stroke='%23999' stroke-width='9'/%3E%3C/svg%3E");
 }
 
@@ -25,237 +28,719 @@
    Base
    --------------------------------------------------------------------- */
 
-body {
-    margin: 0;
-    padding: 5px;
-    background-color: var(--bg);
-    color: #fff;
-    font-family: 'Segoe UI', Roboto, sans-serif;
-    font-size: 11px;
-    letter-spacing: 0.5px;
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
 }
 
-.container {
-    max-width: 1000px;
-    margin: 0 auto;
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(1200px 500px at 50% -200px, #2a1218 0, transparent 70%), var(--bg);
+    color: var(--text);
+    font: 14px/1.4 var(--font);
+}
+
+button,
+input {
+    font: inherit;
+    color: inherit;
+}
+
+button {
+    cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
 input[type="text"],
-input[type="number"],
-select {
-    padding: 4px 6px;
-    background: var(--input-bg);
-    border: 1px solid var(--border-input);
-    border-radius: 2px;
-    color: var(--accent-blue);
-    font-size: 10px;
+input[type="number"] {
+    width: 100%;
+    padding: 9px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus {
+    border-color: #3a4252;
+    outline: none;
+}
+
+.wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 20px 32px;
+}
+
+.hint {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.hint-warning {
+    padding: 8px 10px;
+    background: rgba(255, 70, 85, 0.1);
+    border: 1px solid rgba(255, 70, 85, 0.35);
+    border-radius: var(--radius-sm);
+    color: #ffb3ba;
 }
 
 /* ---------------------------------------------------------------------
-   Settings bar
+   Top bar
    --------------------------------------------------------------------- */
 
-.settings-bar {
+.topbar {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 10px;
-    justify-content: center;
-    align-items: center;
-    margin-bottom: 10px;
-    padding: 8px;
-    background: var(--panel-bg);
-    border-bottom: 1px solid var(--border);
-    border-radius: 4px;
+    padding: 16px 0;
 }
 
-/* Player toggles are rendered by JS; let them flow as direct flex items */
-.player-toggles {
-    display: contents;
-}
-
-.setting-group {
+.logo {
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 3px 6px;
-    background: var(--control-bg);
-    border-radius: 3px;
+    gap: 10px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
 }
 
-#history-reserve {
-    width: 36px;
+.logo img {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
 }
 
-#webhook-url {
-    width: 200px;
-    border-color: #555;
+.logo em {
+    color: var(--accent);
+    font-style: normal;
 }
 
-#discord-theme {
-    cursor: pointer;
+.spacer {
+    flex: 1;
 }
 
-.reset-btn {
-    padding: 2px 6px;
-    background: var(--border);
-    border: 1px solid var(--border-input);
-    border-radius: 2px;
-    color: #aaa;
-    font-size: 11px;
-    cursor: pointer;
-}
-
-.reset-btn:hover {
-    color: #fff;
-}
-
-/* ---------------------------------------------------------------------
-   Result zone (rolled squad)
-   --------------------------------------------------------------------- */
-
-.result-zone {
+.chip {
     display: flex;
-    justify-content: center;
     align-items: center;
-    gap: 8px;
-    min-height: 140px;
-    margin-bottom: 15px;
-    padding: 8px;
-    background: #000;
-    border: 2px solid var(--apex-red);
-    border-radius: 6px;
-}
-
-.placeholder-text {
-    color: var(--border);
-    font-size: 0.9rem;
-}
-
-.res-item {
-    width: 100px;
-    text-align: center;
-}
-
-.res-item img {
-    display: block;
-    width: 100%;
-    border-bottom: 3px solid var(--apex-red);
-}
-
-.res-name {
-    padding: 2px;
-    background: var(--apex-red);
-    font-size: 10px;
-    font-weight: bold;
-}
-
-/* Player nickname under the rolled legend */
-.res-player {
-    margin-top: 3px;
-    overflow: hidden;
-    color: var(--accent-blue);
-    font-size: 11px;
-    font-weight: bold;
-    text-overflow: ellipsis;
+    gap: 6px;
+    padding: 7px 12px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 13px;
     white-space: nowrap;
+}
+
+.chip:hover {
+    border-color: #3a4252;
+}
+
+.chip b {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.chip b.ok {
+    color: var(--ok);
+}
+
+.chip b.muted {
+    color: var(--muted);
+}
+
+.icon-btn {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--muted);
+    font-size: 16px;
+}
+
+.icon-btn:hover,
+.icon-btn.active {
+    color: var(--text);
+    border-color: #3a4252;
+}
+
+/* Settings popover */
+.settings-anchor {
+    position: relative;
+}
+
+.popover {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 50;
+    width: 340px;
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.popover[hidden] {
+    display: none;
+}
+
+.field + .field {
+    margin-top: 16px;
+}
+
+.field label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.field-row {
+    display: flex;
+    gap: 8px;
+}
+
+.field-row input {
+    width: 80px;
 }
 
 /* ---------------------------------------------------------------------
    Buttons
    --------------------------------------------------------------------- */
 
-.btn-group {
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    margin: 22px 0 28px;
+}
+
+.btn {
+    padding: 14px 28px;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    transition: transform 0.1s, box-shadow 0.2s, opacity 0.2s;
+}
+
+.btn:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.btn:disabled {
+    cursor: default;
+    opacity: 0.45;
+}
+
+.btn-primary {
+    min-width: 260px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 15px;
+    letter-spacing: 1px;
+    box-shadow: 0 8px 30px var(--accent-glow);
+}
+
+.btn-primary:hover {
+    box-shadow: 0 10px 40px var(--accent-glow);
+}
+
+.btn-discord {
     display: flex;
     justify-content: center;
-    gap: 10px;
-    margin: 15px 0;
-}
-
-.roll-btn,
-.discord-btn {
-    padding: 12px;
-    border: none;
-    color: #fff;
-    font-weight: bold;
-    cursor: pointer;
-    clip-path: polygon(5% 0, 100% 0, 95% 100%, 0% 100%);
-}
-
-.roll-btn {
-    width: 260px;
-    background: var(--apex-red);
-    font-size: 16px;
-}
-
-.discord-btn {
-    width: 180px;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
     background: var(--discord);
-    font-size: 12px;
+    color: #fff;
 }
 
-.discord-btn[hidden] {
-    display: none;
-}
-
-.roll-btn:disabled,
-.discord-btn:disabled {
-    background: var(--border-input);
+.btn-discord.loading {
     opacity: 0.7;
 }
 
+.btn-icon {
+    font-size: 12px;
+}
+
+.btn-small {
+    padding: 8px 12px;
+    background: var(--surface-2);
+    border-color: var(--line);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
 /* ---------------------------------------------------------------------
-   Discord preview — mimics Discord's message layout and size limits
-   (embed images up to 400px wide, thumbnails up to 80px, native size if smaller)
+   Rolled squad
    --------------------------------------------------------------------- */
 
-.discord-preview-panel {
-    margin-bottom: 15px;
-    background: var(--panel-bg);
-    border-radius: 4px;
+.hero {
+    --hero-gap: 16px;
+    display: flex;
+    justify-content: center;
+    gap: var(--hero-gap);
+    margin-top: 8px;
 }
 
-.discord-preview-panel > summary {
-    padding: 6px 10px;
+.pick {
+    position: relative;
+    /* Always a third of the row, so 1 or 2 players don't stretch to full width */
+    flex: 0 0 calc((100% - 2 * var(--hero-gap)) / 3);
+    min-width: 0;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    animation: pick-in 0.35s ease-out;
+}
+
+.pick img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 20%;
+}
+
+.pick::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(8, 10, 14, 0.95) 0, rgba(8, 10, 14, 0.3) 45%, transparent 70%);
+}
+
+.pick-info {
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: 14px;
+    z-index: 1;
+}
+
+.pick-player {
+    overflow: hidden;
     color: var(--muted);
-    font-size: 10px;
-    font-weight: bold;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+    text-overflow: ellipsis;
     text-transform: uppercase;
-    cursor: pointer;
-    user-select: none;
+    white-space: nowrap;
 }
 
-.discord-preview {
+.pick-legend {
+    font-size: 26px;
+    font-weight: 800;
+}
+
+.pick-class {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 1;
+    padding: 4px 10px;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(6px);
+    border-radius: 999px;
+    color: #cfd3dd;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* Before the first roll */
+.pick-empty {
+    background: transparent;
+    border-style: dashed;
+    animation: none;
+}
+
+.pick-empty::after {
+    display: none;
+}
+
+.pick-empty .pick-legend {
+    color: #3a4252;
+}
+
+@keyframes pick-in {
+    from { opacity: 0; transform: translateY(6px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+}
+
+/* ---------------------------------------------------------------------
+   Player cards
+   --------------------------------------------------------------------- */
+
+.players {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+.card {
+    padding: 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+}
+
+.card-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+
+.card .name {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 6px;
+    margin-left: -6px;
+    background: transparent;
+    border: 1px solid transparent;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.card .name:hover,
+.card .name:focus {
+    background: var(--surface-2);
+    border-color: var(--line);
+}
+
+.count {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+/* On/off switch */
+.switch {
+    position: relative;
+    flex: none;
+    width: 36px;
+    height: 20px;
+    cursor: pointer;
+}
+
+.switch input {
+    position: absolute;
+    opacity: 0;
+}
+
+.switch span {
+    position: absolute;
+    inset: 0;
+    background: #3a4252;
+    border-radius: 999px;
+    transition: background 0.2s;
+}
+
+.switch span::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 14px;
+    height: 14px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s;
+}
+
+.switch input:checked + span {
+    background: var(--accent);
+}
+
+.switch input:checked + span::after {
+    transform: translateX(16px);
+}
+
+.switch input:focus-visible + span {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* Player excluded from the roll */
+.card.inactive .cls-label,
+.card.inactive .grid {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.card.inactive .name {
+    color: var(--muted);
+}
+
+.cls-label {
+    margin: 10px 0 6px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+/* 7 columns = the largest class, so every class fits in one row like in game */
+.grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+}
+
+/* ---------------------------------------------------------------------
+   Legend tile states
+     available — full colour
+     .cd       — rolled recently: grey + rolls-left counter
+     .off      — not owned: dark + grey "no entry" sign
+     .last     — rolled in the last roll: accent outline
+   --------------------------------------------------------------------- */
+
+.tile {
+    position: relative;
+    aspect-ratio: 1;
+    overflow: hidden;
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: transform 0.12s;
+}
+
+.tile:hover {
+    transform: translateY(-1px);
+}
+
+.tile input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.tile img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: filter 0.2s;
+}
+
+.tile:has(input:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.tile.cd img {
+    filter: grayscale(1) brightness(0.45);
+}
+
+.tile.cd::after {
+    content: attr(data-cd);
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 13px;
+    font-weight: 700;
+    text-shadow: 0 0 3px #000;
+}
+
+.tile.off img {
+    filter: grayscale(1) brightness(0.25);
+}
+
+.tile.off::before {
+    content: "";
+    position: absolute;
+    inset: 14%;
+    z-index: 1;
+    background: var(--no-entry-icon) center / contain no-repeat;
+    opacity: 0.8;
+}
+
+.tile.last {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+/* Legend for tile states */
+.legend-key {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 18px;
+    margin-top: 16px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.legend-key i {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 6px;
+    border-radius: 3px;
+    vertical-align: -1px;
+}
+
+.key-available { background: #d9dce3; }
+.key-cooldown { background: #555b66; }
+.key-off { background: #1b202b; border: 1px solid #7a7f8c; }
+.key-last { border: 2px solid var(--accent); }
+
+.footer {
+    margin-top: 24px;
+    text-align: center;
+    font-size: 12px;
+}
+
+.footer a {
+    color: var(--muted);
+}
+
+/* ---------------------------------------------------------------------
+   Modal (theme picker)
+   --------------------------------------------------------------------- */
+
+.backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(5, 6, 10, 0.7);
+    backdrop-filter: blur(4px);
+}
+
+.modal {
+    width: min(1100px, 100%);
+    max-height: 100%;
+    overflow: auto;
+    padding: 18px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+
+.modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.modal-head h3 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.theme-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 14px;
+}
+
+.theme-option {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    padding: 4px 10px 12px;
+    padding: 14px;
+    background: var(--surface-2);
+    border: 2px solid var(--line);
+    border-radius: var(--radius);
+    text-align: left;
 }
+
+.theme-option:hover {
+    border-color: #3a4252;
+}
+
+.theme-option.selected {
+    border-color: var(--accent);
+}
+
+.theme-option-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.theme-name {
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.theme-check {
+    display: none;
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.theme-option.selected .theme-check {
+    display: inline;
+}
+
+.theme-preview {
+    margin-top: 12px;
+}
+
+.skeleton {
+    height: 220px;
+    background: linear-gradient(90deg, #2b2d31 0, #34363c 50%, #2b2d31 100%) 0 0 / 200% 100%;
+    border-radius: var(--radius-sm);
+    animation: shimmer 1.2s linear infinite;
+}
+
+@keyframes shimmer {
+    to { background-position: -200% 0; }
+}
+
+/* ---------------------------------------------------------------------
+   Discord message mock — Discord's sizes: embed images up to 400px wide
+   --------------------------------------------------------------------- */
 
 .dc-message {
     display: flex;
-    gap: 16px;
-    width: 100%;
-    max-width: 520px;
-    padding: 12px 16px;
+    gap: 12px;
+    padding: 12px;
     background: #313338;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     color: #dbdee1;
-    font-family: 'gg sans', 'Segoe UI', Roboto, sans-serif;
     font-size: 14px;
-    letter-spacing: normal;
-    box-sizing: border-box;
 }
 
 .dc-avatar {
     flex: none;
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
-    background: #1e1f22;
 }
 
 .dc-body {
     min-width: 0;
+    flex: 1;
 }
 
 .dc-header {
@@ -281,47 +766,39 @@ select {
 
 .dc-subtext {
     margin-bottom: 4px;
-    font-size: 12px;
-}
-
-.dc-subtext a {
     color: #00a8fc;
-    text-decoration: none;
+    font-size: 12px;
 }
 
 .dc-embed {
     max-width: 432px;
     margin-top: 6px;
-    padding: 8px 16px 16px 12px;
+    padding: 8px 14px 14px 12px;
     background: #2b2d31;
-    border-left: 4px solid var(--apex-red);
+    border-left: 4px solid var(--accent);
     border-radius: 4px;
-    box-sizing: border-box;
 }
 
 .dc-embed-head {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
     gap: 16px;
 }
 
 .dc-embed-title {
-    margin-top: 8px;
+    margin-top: 6px;
     color: #f2f3f5;
-    font-size: 16px;
     font-weight: 600;
 }
 
 .dc-embed-desc {
-    margin-top: 8px;
+    margin-top: 6px;
 }
 
 .dc-embed-thumb {
     flex: none;
     max-width: 80px;
     max-height: 80px;
-    margin-top: 8px;
     border-radius: 4px;
 }
 
@@ -329,135 +806,105 @@ select {
     display: block;
     max-width: 100%;
     max-height: 300px;
-    margin-top: 16px;
+    margin-top: 12px;
     border-radius: 4px;
 }
 
-.dc-note {
-    margin-top: 8px;
-    color: var(--muted);
-    font-size: 10px;
-}
-
 /* ---------------------------------------------------------------------
-   Player cards
+   Toasts
    --------------------------------------------------------------------- */
 
-.players-row {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
+.toasts {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     gap: 8px;
-}
-
-.player-card {
-    padding: 8px;
-    background: var(--card-bg);
-    border-top: 3px solid var(--border);
-    border-radius: 4px;
-    transition: 0.3s;
-}
-
-/* Player excluded from the roll */
-.player-card.disabled {
-    opacity: 0.15;
-    filter: grayscale(1);
+    transform: translateX(-50%);
     pointer-events: none;
 }
 
-.player-display-name {
-    margin: 0 0 8px;
-    border-bottom: 1px solid var(--input-bg);
-    color: var(--accent-blue);
-    font-size: 0.9rem;
-    text-align: center;
+.toast {
+    padding: 10px 16px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    font-size: 13px;
+    font-weight: 600;
+    animation: pick-in 0.2s ease-out;
+    transition: opacity 0.4s;
 }
 
-.class-group {
-    margin-bottom: 6px;
-}
-
-.class-header {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-bottom: 3px;
-    color: var(--muted);
-    font-size: 8px;
-}
-
-.legend-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 2px;
-}
+.toast-success { border-color: rgba(59, 165, 93, 0.6); }
+.toast-error { border-color: rgba(255, 70, 85, 0.7); }
+.toast.hide { opacity: 0; }
 
 /* ---------------------------------------------------------------------
-   Legend tile states
-     available   — checked, in the pool: full colour, red border
-     cooldown    — checked, rolled recently: grey + rolls-left counter
-     not owned   — unchecked: dark + grey "no entry" sign
+   Small screens
    --------------------------------------------------------------------- */
 
-.legend-opt {
-    position: relative;
-    aspect-ratio: 1 / 1;
-    background: var(--panel-bg);
-    border: 1px solid var(--input-bg);
-    cursor: pointer;
+@media (max-width: 900px) {
+    .players {
+        grid-template-columns: 1fr;
+    }
+
+    .topbar .spacer {
+        display: none;
+    }
+
+    .logo {
+        width: 100%;
+    }
 }
 
-.legend-opt input {
-    display: none;
-}
+@media (max-width: 600px) {
+    /* Three small posters in a row so the cards stay close to the top */
+    .hero {
+        --hero-gap: 8px;
+    }
 
-/* Not owned (default state) */
-.legend-opt img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    filter: grayscale(1) brightness(0.3);
-}
+    .pick {
+        aspect-ratio: 3 / 4;
+        border-radius: var(--radius);
+    }
 
-.legend-opt:not(:has(input:checked))::before {
-    content: "";
-    position: absolute;
-    inset: 8%;
-    z-index: 1;   /* above the img, which has its own stacking context because of filter */
-    background: var(--no-entry-icon) center / contain no-repeat;
-    opacity: 0.85;
-    pointer-events: none;
-}
+    .pick-info {
+        left: 8px;
+        right: 8px;
+        bottom: 8px;
+    }
 
-/* Available */
-.legend-opt:has(input:checked) {
-    z-index: 1;
-    border-color: var(--apex-red);
-}
+    .pick-player {
+        font-size: 10px;
+        letter-spacing: 0.5px;
+    }
 
-.legend-opt:has(input:checked) img {
-    filter: none;
-}
+    .pick-legend {
+        overflow: hidden;
+        font-size: 15px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
 
-/* On cooldown */
-.legend-opt.blocked:has(input:checked) {
-    border-color: #555;
-}
+    .pick-class {
+        display: none;
+    }
 
-.legend-opt.blocked:has(input:checked) img {
-    filter: grayscale(1) brightness(0.45);
-}
+    .actions .btn {
+        flex: 1;
+        min-width: 0;
+        padding: 14px 12px;
+    }
 
-.legend-opt.blocked:has(input:checked)::after {
-    content: attr(data-cd);
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: rgba(255, 255, 255, 0.45);
-    font-size: 14px;
-    font-weight: bold;
-    text-shadow: 0 0 3px #000;
-    pointer-events: none;
+    .popover {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        right: 12px;
+        width: auto;
+    }
 }
