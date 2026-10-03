@@ -29,6 +29,7 @@
         </div>
 
         <input type="text" id="webhook-url" placeholder="Discord Webhook URL" autocomplete="off">
+        <select id="discord-theme" title="How the squad looks in Discord"></select>
     </div>
 
     <!-- Rolled squad -->
@@ -40,6 +41,12 @@
         <button type="button" id="roll-btn" class="roll-btn">RANDOMIZE</button>
         <button type="button" id="discord-btn" class="discord-btn" hidden>SEND TO DISCORD</button>
     </div>
+
+    <!-- What will be sent to Discord (shown after the first roll) -->
+    <details id="discord-preview-panel" class="discord-preview-panel" open hidden>
+        <summary>Discord preview</summary>
+        <div id="discord-preview" class="discord-preview"></div>
+    </details>
 
     <!-- Per-player legend pools -->
     <div id="players-container" class="players-row"></div>

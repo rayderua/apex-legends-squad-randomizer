@@ -41,7 +41,8 @@ body {
 }
 
 input[type="text"],
-input[type="number"] {
+input[type="number"],
+select {
     padding: 4px 6px;
     background: var(--input-bg);
     border: 1px solid var(--border-input);
@@ -88,6 +89,10 @@ input[type="number"] {
 #webhook-url {
     width: 200px;
     border-color: #555;
+}
+
+#discord-theme {
+    cursor: pointer;
 }
 
 .reset-btn {
@@ -144,10 +149,15 @@ input[type="number"] {
     font-weight: bold;
 }
 
+/* Player nickname under the rolled legend */
 .res-player {
-    margin-top: 1px;
-    color: var(--border-input);
-    font-size: 7px;
+    margin-top: 3px;
+    overflow: hidden;
+    color: var(--accent-blue);
+    font-size: 11px;
+    font-weight: bold;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* ---------------------------------------------------------------------
@@ -191,6 +201,142 @@ input[type="number"] {
 .discord-btn:disabled {
     background: var(--border-input);
     opacity: 0.7;
+}
+
+/* ---------------------------------------------------------------------
+   Discord preview — mimics Discord's message layout and size limits
+   (embed images up to 400px wide, thumbnails up to 80px, native size if smaller)
+   --------------------------------------------------------------------- */
+
+.discord-preview-panel {
+    margin-bottom: 15px;
+    background: var(--panel-bg);
+    border-radius: 4px;
+}
+
+.discord-preview-panel > summary {
+    padding: 6px 10px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+    cursor: pointer;
+    user-select: none;
+}
+
+.discord-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 4px 10px 12px;
+}
+
+.dc-message {
+    display: flex;
+    gap: 16px;
+    width: 100%;
+    max-width: 520px;
+    padding: 12px 16px;
+    background: #313338;
+    border-radius: 6px;
+    color: #dbdee1;
+    font-family: 'gg sans', 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    letter-spacing: normal;
+    box-sizing: border-box;
+}
+
+.dc-avatar {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #1e1f22;
+}
+
+.dc-body {
+    min-width: 0;
+}
+
+.dc-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.dc-username {
+    color: #f2f3f5;
+    font-weight: 600;
+}
+
+.dc-app-tag {
+    padding: 0 4px;
+    background: var(--discord);
+    border-radius: 3px;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 15px;
+}
+
+.dc-subtext {
+    margin-bottom: 4px;
+    font-size: 12px;
+}
+
+.dc-subtext a {
+    color: #00a8fc;
+    text-decoration: none;
+}
+
+.dc-embed {
+    max-width: 432px;
+    margin-top: 6px;
+    padding: 8px 16px 16px 12px;
+    background: #2b2d31;
+    border-left: 4px solid var(--apex-red);
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+.dc-embed-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+}
+
+.dc-embed-title {
+    margin-top: 8px;
+    color: #f2f3f5;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.dc-embed-desc {
+    margin-top: 8px;
+}
+
+.dc-embed-thumb {
+    flex: none;
+    max-width: 80px;
+    max-height: 80px;
+    margin-top: 8px;
+    border-radius: 4px;
+}
+
+.dc-embed-image {
+    display: block;
+    max-width: 100%;
+    max-height: 300px;
+    margin-top: 16px;
+    border-radius: 4px;
+}
+
+.dc-note {
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 10px;
 }
 
 /* ---------------------------------------------------------------------

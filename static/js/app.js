@@ -276,9 +276,9 @@
         reserve: $('history-reserve'),
         resetHistory: $('reset-history'),
         webhook: $('webhook-url'),
-        discordTheme: $('discord-theme'),
-        previewPanel: $('discord-preview-panel'),
-        preview: $('discord-preview'),
+        discordTheme: null,     // created by ensureDiscordControls() if index.html doesn't have them
+        previewPanel: null,
+        preview: null,
         rollBtn: $('roll-btn'),
         discordBtn: $('discord-btn'),
     };
@@ -798,6 +798,30 @@
         previewTimer = setTimeout(renderPreview, delay);
     }
 
+    /**
+     * Theme selector and preview panel were added later. If an older (e.g. cached) index.html
+     * doesn't contain them, create them here so the page still works.
+     */
+    function ensureDiscordControls() {
+        dom.discordTheme = $('discord-theme');
+        if (!dom.discordTheme) {
+            dom.discordTheme = h('select', { id: 'discord-theme', title: 'How the squad looks in Discord' });
+            dom.webhook.after(dom.discordTheme);
+        }
+
+        dom.previewPanel = $('discord-preview-panel');
+        dom.preview = $('discord-preview');
+        if (!dom.previewPanel || !dom.preview) {
+            dom.previewPanel?.remove();
+            dom.preview = h('div', { id: 'discord-preview', class: 'discord-preview' });
+            dom.previewPanel = h('details', { id: 'discord-preview-panel', class: 'discord-preview-panel', open: true, hidden: true },
+                h('summary', {}, 'Discord preview'),
+                dom.preview,
+            );
+            dom.players.before(dom.previewPanel);
+        }
+    }
+
     function renderThemeSelect() {
         dom.discordTheme.replaceChildren(...Object.entries(DISCORD_THEMES).map(([id, theme]) =>
             h('option', { value: id, selected: id === state.discordTheme }, theme.label)));
@@ -864,13 +888,16 @@
     // ---------------------------------------------------------------------
 
     function init() {
+        // Core UI first: players must render even if an optional feature fails
         dom.reserve.value = state.reserve;
         dom.webhook.value = state.webhook;
-        renderThemeSelect();
         renderPlayerToggles();
         renderPlayerCards();
         renderCooldowns();
         renderResult();
+
+        ensureDiscordControls();
+        renderThemeSelect();
         bindEvents();
     }
 
