@@ -12,7 +12,7 @@ No build step, no backend, no dependencies — a static page that runs entirely 
 ## How to use
 
 1. **Set up once:** name the players, untick the legends each player doesn't own,
-   paste a Discord webhook and pick a theme.
+   paste a Discord webhook, pick a theme and (optionally) add players' Discord IDs to ping them.
 2. **Every match:** press **Randomize** → **Send to Discord**.
 
 Everything is saved in the browser, so next time the page opens ready to go.
@@ -24,9 +24,11 @@ Everything is saved in the browser, so next time the page opens ready to go.
 - **No duplicates in a squad** — two players never get the same legend.
 - **No-repeat window** — a player won't get the same legend again too soon ([how it works](#no-repeat-window)).
 - **Discord webhook** — one click sends the squad with an image of the select screen; two themes to choose from.
+- **Pings in Discord** — add a player's Discord user ID and they get a push notification with every squad.
 - **↺ Reset** — clears the current squad and the cooldowns; players, legends and settings stay.
 - **Works on phones** — the layout adapts to small screens.
-- **Saved locally** — names, players, legend pools, reserve, roll history, webhook and theme live in `localStorage`.
+- **Saved locally** — names, Discord IDs, players, legend pools, reserve, roll history, webhook and theme
+  live in `localStorage`.
 
 ### Legend tiles
 
@@ -68,6 +70,20 @@ Each player has their own roll history. With **N** legends in a player's pool an
 2. Paste it into the **Discord webhook** field in the top bar — the dot turns green.
 3. Press **🎨 Theme** and click the look you like.
 4. Roll a squad and press **Send to Discord** — it's sent right away.
+
+### Pinging players
+
+To make Discord notify a player when the squad is sent, put their **Discord user ID** into the `@` field
+under their name:
+
+1. In Discord: *User Settings → Advanced → Developer Mode* (once).
+2. Right-click the player → *Copy User ID*, paste it into the field (a pasted `<@…>` mention works too).
+
+A 🔔 means the ID is valid; a red field means it isn't. Only players taking part in the roll are pinged,
+and only them — the message never pings `@everyone` or roles. Players without an ID are just not mentioned.
+Discord only notifies people who can see the channel, and respects their notification settings.
+
+### Themes
 
 ![Theme picker](docs/screenshots/themes.jpg)
 
@@ -129,7 +145,7 @@ The randomizer was originally written by hand: the idea, the first working versi
 duplicate-free squads and the Discord webhook were built without AI.
 
 Later it was polished with the help of an AI assistant (Claude by Anthropic): the no-repeat window,
-the Discord images and themes, the redesign, refactoring and this README. Every change was directed,
+the Discord images, themes and player pings, the redesign, refactoring and this README. Every change was directed,
 reviewed and tested by the author.
 
 ## License

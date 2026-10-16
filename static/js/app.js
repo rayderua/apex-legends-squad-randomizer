@@ -87,6 +87,7 @@
         history: 'apex_history',
         webhook: 'apex_webhook',
         discordTheme: 'apex_discord_theme',
+        discordIds: 'apex_discord_ids',
     };
 
     // ---------------------------------------------------------------------
@@ -135,6 +136,9 @@
         reserve: parseReserve(storage.load(STORAGE_KEYS.reserve, CONFIG.defaultReserve)),
         webhook: localStorage.getItem(STORAGE_KEYS.webhook) || '',   // stored as a plain string
         discordTheme: migrateThemeId(storage.load(STORAGE_KEYS.discordTheme, CONFIG.discord.defaultTheme)),
+        // Discord user IDs to @mention players (so they get a push); raw input, validated on use
+        discordIds: normalizeList(storage.load(STORAGE_KEYS.discordIds), CONFIG.playerCount, () => '',
+            v => typeof v === 'string'),
         lastSquad: [],   // [{ player, legend }]
     };
 
@@ -156,7 +160,17 @@
         reserve: () => storage.save(STORAGE_KEYS.reserve, state.reserve),
         webhook: () => localStorage.setItem(STORAGE_KEYS.webhook, state.webhook),
         discordTheme: () => storage.save(STORAGE_KEYS.discordTheme, state.discordTheme),
+        discordIds: () => storage.save(STORAGE_KEYS.discordIds, state.discordIds),
     };
+
+    /**
+     * Discord user ID ("snowflake") from user input: accepts "123…", "<@123…>" or "<@!123…>".
+     * Returns null when the input isn't a valid ID.
+     */
+    function parseDiscordId(value) {
+        const match = String(value ?? '').trim().match(/^<?@?!?(\d{17,20})>?$/);
+        return match ? match[1] : null;
+    }
 
     // ---------------------------------------------------------------------
     // Randomizer logic (pure functions, no DOM access)
@@ -420,6 +434,24 @@
                     h('span'),
                 ),
             ),
+            h('label', {
+                class: 'discord-id',
+                title: 'Discord user ID — the player is @mentioned and gets a push when the squad is sent.\n'
+                    + 'Discord: Settings → Advanced → Developer Mode, then right-click the user → Copy User ID.',
+            },
+                h('span', { class: 'discord-id-at' }, '@'),
+                h('input', {
+                    type: 'text',
+                    class: 'discord-id-input',
+                    value: state.discordIds[player],
+                    placeholder: 'Discord user ID (optional)',
+                    inputmode: 'numeric',
+                    autocomplete: 'off',
+                    spellcheck: 'false',
+                    dataset: { player },
+                }),
+                h('span', { class: 'discord-id-status' }),
+            ),
             ...classGroups.flat(),
         );
     }
@@ -440,6 +472,7 @@
 
         card.classList.toggle('inactive', !state.active[player]);
         card.querySelector('.count').textContent = `${pool.length}/${ALL_LEGENDS.length}`;
+        renderDiscordIdState(player);
 
         card.querySelectorAll('.tile').forEach(tile => {
             const legend = tile.dataset.legend;
@@ -461,6 +494,16 @@
     }
 
     const renderAllCardStates = () => PLAYER_IDS.forEach(renderCardState);
+
+    /** Discord ID field: empty = no mention, valid = will be mentioned, invalid = highlighted. */
+    function renderDiscordIdState(player) {
+        const field = playerCard(player).querySelector('.discord-id');
+        const raw = state.discordIds[player].trim();
+        const valid = parseDiscordId(raw) !== null;
+        field.classList.toggle('valid', valid);
+        field.classList.toggle('invalid', raw !== '' && !valid);
+        field.querySelector('.discord-id-status').textContent = raw === '' ? '' : (valid ? '🔔' : 'invalid ID');
+    }
 
     // ---------------------------------------------------------------------
     // UI: toasts and modal
@@ -829,15 +872,23 @@
             return embed;
         });
 
+        // Mentions only notify when they are in `content` (mentions inside embeds don't ping)
+        const mentions = [...new Set(squad.map(({ player }) => parseDiscordId(state.discordIds[player])).filter(Boolean))];
+
         const payload = {
             username: CONFIG.discord.username,
             avatar_url: getBaseUrl() + CONFIG.discord.avatarPath,
             // "-#" = small grey subtext; <url> disables the link preview
-            content: `-# [Apex Squad Randomizer](<${getSourceUrl()}>)`,
+            content: [
+                mentions.map(id => `<@${id}>`).join(' '),
+                `-# [Apex Squad Randomizer](<${getSourceUrl()}>)`,
+            ].filter(Boolean).join('\n'),
             embeds,
+            // Ping exactly these users and nothing else (no @everyone / roles)
+            allowed_mentions: { parse: [], users: mentions },
         };
 
-        return { payload, files, imageError };
+        return { payload, files, imageError, mentions };
     }
 
     /** Human-readable reason why Discord images couldn't be generated. */
@@ -878,7 +929,10 @@
             const message = await buildDiscordMessage(state.lastSquad);
             const response = await fetch(url, { method: 'POST', ...toWebhookRequest(message) });
             if (response.ok && message.imageError) toast('Sent to Discord without images — see the theme window for details', 'error');
-            else if (response.ok) toast('Sent to Discord', 'success');
+            else if (response.ok) {
+                const pinged = message.mentions.length;
+                toast(pinged ? `Sent to Discord — ${pinged} ${pinged === 1 ? 'player' : 'players'} pinged` : 'Sent to Discord', 'success');
+            }
             else toast(`Discord error: ${response.status}`, 'error');
         } catch {
             toast('Network error', 'error');
@@ -918,7 +972,8 @@
 
     /** Discord message mock with one embed: shows how a theme looks. */
     async function renderThemePreview(themeId, sample, objectUrls) {
-        const message = await buildDiscordMessage([sample], themeId);
+        const sampleSquad = [sample];
+        const message = await buildDiscordMessage(sampleSquad, themeId);
         const fileUrls = new Map(message.files.map(({ name, blob }) => {
             const url = URL.createObjectURL(blob);
             objectUrls.push(url);
@@ -932,6 +987,9 @@
                     h('span', { class: 'dc-username' }, message.payload.username),
                     h('span', { class: 'dc-app-tag' }, 'APP'),
                 ),
+                message.mentions.length ? h('div', { class: 'dc-mentions' }, ...sampleSquad
+                    .filter(({ player }) => parseDiscordId(state.discordIds[player]))
+                    .map(({ player }) => h('span', { class: 'dc-mention' }, `@${state.names[player]}`))) : null,
                 h('div', { class: 'dc-subtext' }, 'Apex Squad Randomizer'),
                 ...message.payload.embeds.map(embed => renderEmbed(embed, fileUrls)),
                 message.imageError ? h('p', { class: 'hint hint-warning' }, message.imageError) : null,
@@ -994,6 +1052,13 @@
 
         // Player cards: names, on/off switch, owned legends
         dom.players.addEventListener('input', event => {
+            if (event.target.matches('.discord-id-input')) {
+                const player = Number(event.target.dataset.player);
+                state.discordIds[player] = event.target.value;
+                persist.discordIds();
+                renderDiscordIdState(player);
+                return;
+            }
             if (!event.target.matches('.name')) return;
             const player = Number(event.target.dataset.player);
             state.names[player] = event.target.value.trim() || defaultName(player);
@@ -1004,6 +1069,16 @@
         dom.players.addEventListener('change', event => {
             const { target } = event;
             const player = Number(target.dataset.player);
+
+            // Normalize a pasted "<@123…>" mention to the plain ID when leaving the field
+            if (target.matches('.discord-id-input')) {
+                const id = parseDiscordId(target.value);
+                if (id && id !== target.value) {
+                    target.value = state.discordIds[player] = id;
+                    persist.discordIds();
+                }
+                return;
+            }
 
             if (target.matches('.player-active')) {
                 state.active[player] = target.checked;
