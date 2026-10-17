@@ -14,6 +14,7 @@ No build step, no backend, no dependencies — a static page that runs entirely 
 1. **Set up once:** name the players, untick the legends each player doesn't own,
    paste a Discord webhook, pick a theme and (optionally) add players' Discord IDs to ping them.
 2. **Every match:** press **Randomize** → **Send to Discord**.
+   Don't like one pick? **↻** on that poster rerolls only that player.
 
 Everything is saved in the browser, so next time the page opens ready to go.
 
@@ -23,12 +24,17 @@ Everything is saved in the browser, so next time the page opens ready to go.
 - **Per-player legend pool** — click a portrait to mark a legend as not owned (or not wanted).
 - **No duplicates in a squad** — two players never get the same legend.
 - **No-repeat window** — a player won't get the same legend again too soon ([how it works](#no-repeat-window)).
+- **Reroll one player** — **↻** on a poster rerolls just that player; teammates keep their legends.
+- **Lock a legend** — **🔒** on a poster keeps that legend on every *Randomize* (e.g. while you're learning it).
+- **Squad rules** — limit legends of one class per squad, or always include a class ([details](#squad-rules)).
+- **Roll animation** — portraits spin like a slot machine before stopping (can be turned off).
+- **Roll stats** — how often each legend was rolled for every player.
 - **Discord webhook** — one click sends the squad with an image of the select screen; two themes to choose from.
 - **Pings in Discord** — add a player's Discord user ID and they get a push notification with every squad.
-- **↺ Reset** — clears the current squad and the cooldowns; players, legends and settings stay.
+- **↺ Reset** — clears the current squad, locks and cooldowns; players, legends, settings and stats stay.
 - **Works on phones** — the layout adapts to small screens.
-- **Saved locally** — names, Discord IDs, players, legend pools, reserve, roll history, webhook and theme
-  live in `localStorage`.
+- **Saved locally** — names, Discord IDs, players, legend pools, reserve, roll history, the last squad, locks,
+  rules, stats, webhook and theme live in `localStorage`.
 
 ### Legend tiles
 
@@ -63,6 +69,40 @@ Each player has their own roll history. With **N** legends in a player's pool an
   lower means more rotation. Change it in the top bar.
 - Unticking a legend doesn't break the guarantee — only legends currently in the pool are counted.
 - **↺ Reset** clears the history for all players.
+
+## Squad rules
+
+**⚙ Rules** in the top bar (the badge shows how many rules are on):
+
+![Squad rules](docs/screenshots/rules.jpg)
+
+- **Max legends of one class** — *1* gives every player a different class, *2* forbids three of a kind.
+- **Always include** — every checked class is in each squad, e.g. always a Support.
+  You need at least as many players as checked classes.
+- **Roll animation** — on/off. It's also skipped when your system asks for reduced motion.
+
+Rules apply to *Randomize* and to a single-player reroll; locked legends count towards them.
+If no squad can fit the rules and legend pools, you get a message explaining why instead of a roll.
+
+## Lock and reroll
+
+Each poster has two buttons:
+
+- **↻ Reroll** — rolls a new legend for this player only (never the same one again);
+  the other players keep theirs. The rerolled-away legend wasn't played, so it doesn't go on cooldown
+  and isn't counted in the stats.
+- **🔒 Lock** — keeps this legend for the player on every *Randomize* until you unlock it.
+  A locked poster has a gold frame; locked picks don't add cooldowns or stats.
+  Unticking the locked legend in the player's card removes the lock.
+
+## Roll stats
+
+**📊 Stats** in the top bar shows, for every player, how many times each legend was rolled — most rolled
+on top, owned legends that never came up at the bottom. Hover a row to see the share.
+
+![Roll stats](docs/screenshots/stats.jpg)
+
+Stats are kept when you press **↺ Reset**; clear them with *Reset stats* in this window.
 
 ## Discord
 
@@ -145,7 +185,7 @@ The randomizer was originally written by hand: the idea, the first working versi
 duplicate-free squads and the Discord webhook were built without AI.
 
 Later it was polished with the help of an AI assistant (Claude by Anthropic): the no-repeat window,
-the Discord images, themes and player pings, the redesign, refactoring and this README. Every change was directed,
+the Discord images, themes and player pings, squad rules, locks and rerolls, the animation and stats, the redesign, refactoring and this README. Every change was directed,
 reviewed and tested by the author.
 
 ## License

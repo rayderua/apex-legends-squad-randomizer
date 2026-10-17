@@ -29,7 +29,9 @@
         playerCount: 3,
         defaultReserve: 5,      // legends that always stay available in a player's pool
         historyMax: 100,        // roll history entries kept per player
-        maxPickAttempts: 200,   // retries when building a squad without duplicates
+
+        // Roll animation (slot machine): per-player stop times, ms
+        animation: { tickMs: 70, stopMs: [700, 950, 1200] },
 
         repoUrl: 'https://github.com/rayderua/apex-legends-squad-randomizer',
 
@@ -88,6 +90,11 @@
         webhook: 'apex_webhook',
         discordTheme: 'apex_discord_theme',
         discordIds: 'apex_discord_ids',
+        lastSquad: 'apex_last_squad',
+        locks: 'apex_locks',
+        rules: 'apex_rules',
+        animation: 'apex_animation',
+        stats: 'apex_stats',
     };
 
     // ---------------------------------------------------------------------
@@ -139,8 +146,38 @@
         // Discord user IDs to @mention players (so they get a push); raw input, validated on use
         discordIds: normalizeList(storage.load(STORAGE_KEYS.discordIds), CONFIG.playerCount, () => '',
             v => typeof v === 'string'),
-        lastSquad: [],   // [{ player, legend }]
+        lastSquad: loadLastSquad(),   // [{ player, legend }]
+        // Legend locked per player (kept on Randomize), or null
+        locks: normalizeList(storage.load(STORAGE_KEYS.locks), CONFIG.playerCount, () => null,
+            v => ALL_LEGENDS.includes(v)),
+        rules: parseRules(storage.load(STORAGE_KEYS.rules)),
+        animation: storage.load(STORAGE_KEYS.animation, true) !== false,
+        // Per player: { legend: timesRolled }
+        stats: normalizeList(storage.load(STORAGE_KEYS.stats), CONFIG.playerCount, () => ({}),
+            v => v && typeof v === 'object' && !Array.isArray(v)),
     };
+
+    function loadLastSquad() {
+        const list = storage.load(STORAGE_KEYS.lastSquad, []);
+        if (!Array.isArray(list)) return [];
+        const seen = new Set();
+        return list.filter(pick => pick && PLAYER_IDS.includes(pick.player) && ALL_LEGENDS.includes(pick.legend)
+            && !seen.has(pick.player) && seen.add(pick.player));
+    }
+
+    /**
+     * Squad rules:
+     *   maxPerClass — at most N legends of one class in a squad (0 = no limit);
+     *   required    — classes that must be in every squad.
+     */
+    function parseRules(value) {
+        const rules = value && typeof value === 'object' ? value : {};
+        const max = Number(rules.maxPerClass);
+        return {
+            maxPerClass: [1, 2].includes(max) ? max : 0,
+            required: Array.isArray(rules.required) ? rules.required.filter(cls => cls in CONFIG.classes) : [],
+        };
+    }
 
     /** Theme ids were renamed: classFocus -> compact, fullScreen -> detailed. */
     function migrateThemeId(id) {
@@ -161,6 +198,11 @@
         webhook: () => localStorage.setItem(STORAGE_KEYS.webhook, state.webhook),
         discordTheme: () => storage.save(STORAGE_KEYS.discordTheme, state.discordTheme),
         discordIds: () => storage.save(STORAGE_KEYS.discordIds, state.discordIds),
+        lastSquad: () => storage.save(STORAGE_KEYS.lastSquad, state.lastSquad),
+        locks: () => storage.save(STORAGE_KEYS.locks, state.locks),
+        rules: () => storage.save(STORAGE_KEYS.rules, state.rules),
+        animation: () => storage.save(STORAGE_KEYS.animation, state.animation),
+        stats: () => storage.save(STORAGE_KEYS.stats, state.stats),
     };
 
     /**
@@ -214,45 +256,97 @@
 
     const randomItem = array => array[Math.floor(Math.random() * array.length)];
 
+    const classOf = legend => Object.keys(CONFIG.classes).find(cls => CONFIG.classes[cls].includes(legend));
+
     /**
-     * Picks one legend per player with no duplicates in the squad.
-     * Players pick in random order so nobody gets priority on shared legends.
-     * Returns [{ player, legend }] in the order of `players`, or null if impossible.
+     * Can a partial squad still satisfy the squad rules?
+     * `picked` — legends chosen so far, `slotsLeft` — players still to pick.
      */
-    function pickSquad(players) {
-        const pools = players.map(getPool);
-        const cooldowns = players.map((player, k) => getCooldowns(player, pools[k]));
+    function rulesStillPossible(picked, slotsLeft) {
+        const { maxPerClass, required } = state.rules;
+        const perClass = new Map();
+        for (const legend of picked) {
+            const cls = classOf(legend);
+            perClass.set(cls, (perClass.get(cls) ?? 0) + 1);
+        }
+        if (maxPerClass && [...perClass.values()].some(count => count > maxPerClass)) return false;
+        const missing = required.filter(cls => !perClass.has(cls)).length;
+        return missing <= slotsLeft;
+    }
 
-        for (let attempt = 0; attempt < CONFIG.maxPickAttempts; attempt++) {
-            const picks = new Array(players.length);
-            const taken = new Set();
-            let success = true;
+    /**
+     * Builds a squad: one legend per player, no duplicates, squad rules respected.
+     *
+     *   fixed   — Map<player, legend> kept as is (locked legends, teammates on a single reroll);
+     *   exclude — Map<player, Set<legend>> never picked (the legend being rerolled away).
+     *
+     * Free players pick in random order with randomly ordered candidates and backtracking,
+     * so rules can't dead-end a roll. Cooldowns are respected when possible; if no squad fits,
+     * a second pass ignores them (tiny or heavily overlapping pools).
+     * Returns [{ player, legend }] in the order of `players`, or null.
+     */
+    function solveSquad(players, { fixed = new Map(), exclude = new Map() } = {}) {
+        const free = players.filter(player => !fixed.has(player));
 
-            for (const k of shuffle(players.map((_, i) => i))) {
-                const free = pools[k].filter(legend => !taken.has(legend));
-                let candidates = free.filter(legend => !cooldowns[k].has(legend));
-                // Fallback for tiny or heavily overlapping pools: ignore cooldowns
-                if (candidates.length === 0) candidates = free;
-                if (candidates.length === 0) {
-                    success = false;
-                    break;
+        for (const useCooldowns of [true, false]) {
+            const order = shuffle([...free]);
+            const candidates = new Map(order.map(player => {
+                const pool = getPool(player);
+                const cooldowns = useCooldowns ? getCooldowns(player, pool) : new Map();
+                const excluded = exclude.get(player) ?? new Set();
+                return [player, shuffle(pool.filter(legend => !cooldowns.has(legend) && !excluded.has(legend)))];
+            }));
+            const picks = new Map(fixed);
+
+            const search = index => {
+                const picked = [...picks.values()];
+                if (!rulesStillPossible(picked, order.length - index)) return false;
+                if (index === order.length) return true;
+                const player = order[index];
+                for (const legend of candidates.get(player)) {
+                    if (picked.includes(legend)) continue;
+                    picks.set(player, legend);
+                    if (search(index + 1)) return true;
+                    picks.delete(player);
                 }
-                picks[k] = randomItem(candidates);
-                taken.add(picks[k]);
-            }
+                return false;
+            };
 
-            if (success) return players.map((player, k) => ({ player, legend: picks[k] }));
+            if (search(0)) return players.map(player => ({ player, legend: picks.get(player) }));
         }
         return null;
     }
 
-    function addToHistory(squad) {
-        for (const { player, legend } of squad) {
+    /** Explains why solveSquad() found nothing. */
+    function explainNoSquad(players, fixed) {
+        const { required, maxPerClass } = state.rules;
+        if (required.length > players.length) {
+            return `Squad rules require ${required.length} classes, but only ${players.length} `
+                + `${players.length === 1 ? 'player is' : 'players are'} rolling`;
+        }
+        if (fixed.size && !rulesStillPossible([...fixed.values()], players.length - fixed.size)) {
+            return maxPerClass ? 'Locked legends break the squad rules' : 'Locked legends leave no room for the required classes';
+        }
+        return "Can't build a squad that fits the rules and legend pools";
+    }
+
+    function addToHistory(picks) {
+        for (const { player, legend } of picks) {
             const history = state.history[player];
             history.push(legend);
             if (history.length > CONFIG.historyMax) history.splice(0, history.length - CONFIG.historyMax);
         }
         persist.history();
+    }
+
+    /** Statistics: how many times each legend was rolled for each player. */
+    function countRolls(picks, delta = 1) {
+        for (const { player, legend } of picks) {
+            const stats = state.stats[player];
+            stats[legend] = Math.max(0, (stats[legend] ?? 0) + delta);
+            if (stats[legend] === 0) delete stats[legend];
+        }
+        persist.stats();
     }
 
     // ---------------------------------------------------------------------
@@ -298,6 +392,7 @@
 
     function renderLayout() {
         dom.themeName = h('b');
+        dom.rulesBadge = h('b', { class: 'chip-badge' });
 
         dom.reserveInput = h('input', {
             type: 'number', min: '0', max: '50', value: String(state.reserve), 'aria-label': 'No-repeat reserve',
@@ -339,6 +434,10 @@
                     dom.webhookField,
                     h('button', { type: 'button', class: 'chip chip-theme', title: 'Choose how the squad looks in Discord', onclick: openThemePicker },
                         '🎨 Theme: ', dom.themeName),
+                    h('button', { type: 'button', class: 'chip chip-rules', title: 'Squad rules and roll animation', onclick: openRules },
+                        '⚙ Rules', dom.rulesBadge),
+                    h('button', { type: 'button', class: 'chip chip-stats', title: 'How often each legend was rolled', onclick: openStats },
+                        '📊 Stats'),
                 ),
                 dom.result,
                 h('div', { class: 'actions' }, dom.rollBtn, dom.discordBtn, dom.resetBtn),
@@ -361,7 +460,10 @@
         const themeLabel = DISCORD_THEMES[currentThemeId()].label;
         dom.themeName.textContent = themeLabel;
         dom.webhookField.classList.toggle('ready', state.webhook.trim() !== '');
-        dom.discordBtn.disabled = state.lastSquad.length === 0;
+        dom.discordBtn.disabled = state.lastSquad.length === 0 || busy;
+        dom.rollBtn.disabled = busy;
+        const activeRules = (state.rules.maxPerClass ? 1 : 0) + state.rules.required.length;
+        dom.rulesBadge.textContent = activeRules ? String(activeRules) : '';
         dom.discordBtn.title = state.lastSquad.length ? `Send with the "${themeLabel}" theme` : 'Roll a squad first';
     }
 
@@ -386,15 +488,75 @@
 
         dom.result.replaceChildren(...state.lastSquad.map(({ player, legend }) => {
             const cls = classOf(legend);
-            return h('div', { class: 'pick' },
+            const locked = state.locks[player] === legend;
+            return h('div', { class: `pick${locked ? ' locked' : ''}`, dataset: { player } },
                 h('img', { src: legendImage(legend), alt: legend }),
                 h('span', { class: 'pick-class' }, `${CONFIG.classIcons[cls]} ${cls}`),
+                h('div', { class: 'pick-actions' },
+                    h('button', {
+                        type: 'button',
+                        class: `pick-btn${locked ? ' on' : ''}`,
+                        dataset: { action: 'lock', player },
+                        title: locked ? 'Unlock — roll this player again' : 'Lock — keep this legend on Randomize',
+                        'aria-label': locked ? 'Unlock legend' : 'Lock legend',
+                        'aria-pressed': String(locked),
+                    }, locked ? '🔒' : '🔓'),
+                    h('button', {
+                        type: 'button',
+                        class: 'pick-btn',
+                        dataset: { action: 'reroll', player },
+                        disabled: locked,
+                        title: locked ? 'Unlock to reroll' : 'Reroll only this player',
+                        'aria-label': 'Reroll this player',
+                    }, '↻'),
+                ),
                 h('div', { class: 'pick-info' },
-                    h('div', { class: 'pick-player' }, state.names[player]),
+                    h('div', { class: 'pick-player' }, state.names[player], locked ? ' · locked' : ''),
                     h('div', { class: 'pick-legend' }, legend),
                 ),
             );
         }));
+    }
+
+    const pickPoster = player => dom.result.querySelector(`.pick[data-player="${player}"]`);
+
+    const prefersReducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+    /**
+     * Slot-machine reveal: posters of `players` flick through random portraits from the player's pool
+     * and stop one after another on the rolled legend. Resolves when every poster has landed.
+     */
+    function animateReveal(players) {
+        if (!state.animation || prefersReducedMotion() || players.length === 0) return Promise.resolve();
+        const { tickMs, stopMs } = CONFIG.animation;
+
+        return Promise.all(players.map((player, i) => new Promise(resolve => {
+            const poster = pickPoster(player);
+            const img = poster?.querySelector('img');
+            if (!img) return resolve();
+
+            const finalSrc = img.src;
+            const pool = getPool(player);
+            poster.classList.add('spinning');
+            const timer = setInterval(() => {
+                img.src = legendImage(randomItem(pool));
+            }, tickMs);
+
+            setTimeout(() => {
+                clearInterval(timer);
+                img.src = finalSrc;
+                poster.classList.remove('spinning');
+                poster.classList.add('landed');
+                resolve();
+            }, stopMs[Math.min(i, stopMs.length - 1)]);
+        })));
+    }
+
+    /** Preloads every portrait so the animation never shows a half-loaded image. */
+    function preloadPortraits() {
+        ALL_LEGENDS.forEach(legend => {
+            new Image().src = legendImage(legend);
+        });
     }
 
     // ---------------------------------------------------------------------
@@ -518,7 +680,7 @@
 
     let closeActiveModal = null;
 
-    function openModal(title, body, { onClose } = {}) {
+    function openModal(title, body, { onClose, className = '' } = {}) {
         closeActiveModal?.();
 
         const backdrop = h('div', { class: 'backdrop' });
@@ -530,7 +692,7 @@
         backdrop.addEventListener('click', event => {
             if (event.target === backdrop) close();
         });
-        backdrop.append(h('div', { class: 'modal', role: 'dialog', 'aria-label': title },
+        backdrop.append(h('div', { class: `modal ${className}`.trim(), role: 'dialog', 'aria-label': title },
             h('div', { class: 'modal-head' },
                 h('h3', {}, title),
                 h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Close', onclick: close }, '✕'),
@@ -546,22 +708,79 @@
     // Actions
     // ---------------------------------------------------------------------
 
+    let busy = false;   // true while the roll animation is playing
+
+    /** Shows a new squad: animates `rolledPlayers`, then updates cards and warms up Discord images. */
+    async function showSquad(squad, rolledPlayers) {
+        state.lastSquad = squad;
+        persist.lastSquad();
+        renderResult();
+        renderAllCardStates();
+
+        busy = true;
+        renderStatus();
+        try {
+            await animateReveal(rolledPlayers);
+        } finally {
+            busy = false;
+            renderStatus();
+        }
+
+        // Warm up Discord images in the background so sending is instant
+        squad.forEach(({ legend }) => getThemeImages(currentThemeId(), legend).catch(() => {}));
+    }
+
     function roll() {
+        if (busy) return;
         const players = PLAYER_IDS.filter(player => state.active[player]);
         if (players.length === 0) return toast('Turn on at least one player', 'error');
         if (players.some(player => getPool(player).length === 0)) return toast('Every active player needs at least one legend', 'error');
 
-        const squad = pickSquad(players);
-        if (!squad) return toast("Can't build a squad without duplicates", 'error');
+        // Locked legends stay (if still in the player's pool)
+        const fixed = new Map(players
+            .filter(player => state.locks[player] && getPool(player).includes(state.locks[player]))
+            .map(player => [player, state.locks[player]]));
 
-        addToHistory(squad);
-        state.lastSquad = squad;
+        const squad = solveSquad(players, { fixed });
+        if (!squad) return toast(explainNoSquad(players, fixed), 'error');
+
+        const rolled = squad.filter(({ player }) => !fixed.has(player));
+        addToHistory(rolled);
+        countRolls(rolled);
+        showSquad(squad, rolled.map(({ player }) => player));
+    }
+
+    /** Rerolls one player; teammates keep their legends. */
+    function rerollPlayer(player) {
+        if (busy) return;
+        const current = state.lastSquad.find(pick => pick.player === player);
+        if (!current || state.locks[player] === current.legend) return;
+
+        const players = state.lastSquad.map(pick => pick.player);
+        const fixed = new Map(state.lastSquad.filter(pick => pick.player !== player).map(pick => [pick.player, pick.legend]));
+        const squad = solveSquad(players, { fixed, exclude: new Map([[player, new Set([current.legend])]]) });
+        if (!squad) return toast(`No other legend fits for ${state.names[player]}`, 'error');
+
+        const next = squad.find(pick => pick.player === player);
+
+        // The rerolled-away legend wasn't played: replace it in history and stats
+        const history = state.history[player];
+        if (history[history.length - 1] === current.legend) history.pop();
+        addToHistory([next]);
+        countRolls([current], -1);
+        countRolls([next]);
+        showSquad(squad, [player]);
+    }
+
+    function toggleLock(player) {
+        if (busy) return;
+        const current = state.lastSquad.find(pick => pick.player === player);
+        if (!current) return;
+        const locked = state.locks[player] === current.legend;
+        state.locks[player] = locked ? null : current.legend;
+        persist.locks();
         renderResult();
-        renderAllCardStates();
-        renderStatus();
-
-        // Warm up Discord images in the background so sending is instant
-        squad.forEach(({ legend }) => getThemeImages(currentThemeId(), legend).catch(() => {}));
+        toast(locked ? `${state.names[player]}: unlocked` : `${state.names[player]}: ${current.legend} locked`);
     }
 
     function setReserve(value) {
@@ -574,13 +793,161 @@
 
     /** Clears the current squad and roll history (cooldowns); players, legends and settings stay. */
     function reset() {
+        if (busy) return;
         state.history = PLAYER_IDS.map(() => []);
         state.lastSquad = [];
+        state.locks = PLAYER_IDS.map(() => null);
         storage.remove(STORAGE_KEYS.history);
+        persist.lastSquad();
+        persist.locks();
         renderResult();
         renderAllCardStates();
         renderStatus();
-        toast('Squad and roll history have been reset');
+        toast('Squad, locks and roll history have been reset');
+    }
+
+    // ---------------------------------------------------------------------
+    // Rules window: squad composition + animation
+    // ---------------------------------------------------------------------
+
+    function openRules() {
+        const saveRules = () => {
+            persist.rules();
+            renderStatus();
+        };
+
+        const maxOptions = [[0, 'No limit'], [1, '1'], [2, '2']];
+        const maxGroup = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Max legends of one class' },
+            ...maxOptions.map(([value, label]) => h('button', {
+                type: 'button',
+                class: state.rules.maxPerClass === value ? 'on' : '',
+                role: 'radio',
+                'aria-checked': String(state.rules.maxPerClass === value),
+                onclick: event => {
+                    state.rules.maxPerClass = value;
+                    maxGroup.querySelectorAll('button').forEach(btn => {
+                        const on = btn === event.currentTarget;
+                        btn.classList.toggle('on', on);
+                        btn.setAttribute('aria-checked', String(on));
+                    });
+                    saveRules();
+                },
+            }, label)));
+
+        const requiredGroup = h('div', { class: 'class-chips' },
+            ...Object.keys(CONFIG.classes).map(cls => h('label', { class: 'class-chip' },
+                h('input', {
+                    type: 'checkbox',
+                    checked: state.rules.required.includes(cls),
+                    onchange: event => {
+                        const set = new Set(state.rules.required);
+                        if (event.target.checked) set.add(cls);
+                        else set.delete(cls);
+                        state.rules.required = Object.keys(CONFIG.classes).filter(c => set.has(c));
+                        saveRules();
+                    },
+                }),
+                h('span', {}, `${CONFIG.classIcons[cls]} ${cls}`),
+            )));
+
+        const animationSwitch = h('label', { class: 'switch' },
+            h('input', {
+                type: 'checkbox',
+                checked: state.animation,
+                onchange: event => {
+                    state.animation = event.target.checked;
+                    persist.animation();
+                },
+            }),
+            h('span'),
+        );
+
+        openModal('Squad rules', h('div', { class: 'rules' },
+            h('section', { class: 'rule' },
+                h('div', { class: 'rule-title' }, 'Max legends of one class'),
+                h('p', { class: 'hint' }, 'E.g. 1 — every player gets a different class.'),
+                maxGroup,
+            ),
+            h('section', { class: 'rule' },
+                h('div', { class: 'rule-title' }, 'Always include'),
+                h('p', { class: 'hint' }, 'Each checked class is in every squad. Needs at least as many players as checked classes.'),
+                requiredGroup,
+            ),
+            h('section', { class: 'rule rule-row' },
+                h('div', {},
+                    h('div', { class: 'rule-title' }, 'Roll animation'),
+                    h('p', { class: 'hint' }, 'Portraits spin like a slot machine before stopping. Off if your system asks for reduced motion.'),
+                ),
+                animationSwitch,
+            ),
+            h('p', { class: 'hint' }, 'Locked legends (🔒 on a poster) count towards the rules. Changes apply to the next roll.'),
+        ), { className: 'modal-narrow' });
+    }
+
+    // ---------------------------------------------------------------------
+    // Stats window: how often each legend was rolled, per player
+    // ---------------------------------------------------------------------
+
+    function renderPlayerStats(player) {
+        const stats = state.stats[player];
+        const total = Object.values(stats).reduce((sum, n) => sum + n, 0);
+        const max = Math.max(1, ...Object.values(stats));
+        const owned = new Set(getPool(player));
+
+        // Rolled legends first (most rolled on top), then owned ones never rolled
+        const rows = ALL_LEGENDS
+            .filter(legend => stats[legend] || owned.has(legend))
+            .map(legend => ({ legend, count: stats[legend] ?? 0 }))
+            .sort((a, b) => b.count - a.count || ALL_LEGENDS.indexOf(a.legend) - ALL_LEGENDS.indexOf(b.legend));
+
+        return h('section', { class: 'stats-player' },
+            h('div', { class: 'stats-head' },
+                h('span', { class: 'stats-name' }, state.names[player]),
+                h('span', { class: 'stats-total' }, `${total} ${pluralRolls(total)}`),
+            ),
+            total === 0 ? h('p', { class: 'hint' }, 'No rolls yet.') : null,
+            h('ol', { class: 'stats-list' }, ...rows.map(({ legend, count }) => {
+                const share = total ? Math.round((count / total) * 100) : 0;
+                return h('li', {
+                    class: `stats-row${count ? '' : ' zero'}`,
+                    title: count ? `${legend}: ${count} ${pluralRolls(count)} (${share}%)` : `${legend}: never rolled`,
+                },
+                    h('img', { src: legendImage(legend), alt: '', loading: 'lazy' }),
+                    h('span', { class: 'stats-legend' }, legend),
+                    h('span', { class: 'stats-bar' },
+                        h('i', { style: `width: ${(count / max) * 100}%` })),
+                    h('span', { class: 'stats-count' }, String(count)),
+                );
+            })),
+        );
+    }
+
+    function openStats() {
+        const players = PLAYER_IDS.filter(player => state.active[player] || Object.keys(state.stats[player]).length);
+
+        const resetBtn = h('button', { type: 'button', class: 'btn btn-ghost btn-small' }, 'Reset stats');
+        let armed = false;
+        resetBtn.addEventListener('click', () => {
+            if (!armed) {
+                armed = true;
+                resetBtn.textContent = 'Click again to reset';
+                resetBtn.classList.add('danger');
+                return;
+            }
+            state.stats = PLAYER_IDS.map(() => ({}));
+            persist.stats();
+            close();
+            toast('Stats have been reset');
+        });
+
+        const close = openModal('Roll stats', h('div', {},
+            h('div', { class: 'stats-grid' }, ...players.map(renderPlayerStats)),
+            h('div', { class: 'stats-foot' },
+                h('p', { class: 'hint' }, 'Counts every roll, rerolls replace the legend they replaced. Locked legends aren\'t counted again. '
+                    + '↺ Reset on the main screen keeps the stats.'),
+                resetBtn,
+            ),
+        ));
     }
 
     // ---------------------------------------------------------------------
@@ -622,8 +989,6 @@
     async function loadPortraits(legends) {
         return new Map(await Promise.all(legends.map(async legend => [legend, await loadImage(legendImage(legend))])));
     }
-
-    const classOf = legend => Object.keys(CONFIG.classes).find(cls => CONFIG.classes[cls].includes(legend));
 
     /** Width of `count` cells in a row. */
     const cellsWidth = (count, cell, gap) => count * cell + Math.max(0, count - 1) * gap;
@@ -1043,6 +1408,15 @@
         dom.discordBtn.addEventListener('click', sendToDiscord);
         dom.resetBtn.addEventListener('click', reset);
 
+        // Poster buttons: lock / reroll one player
+        dom.result.addEventListener('click', event => {
+            const button = event.target.closest('[data-action]');
+            if (!button) return;
+            const player = Number(button.dataset.player);
+            if (button.dataset.action === 'reroll') rerollPlayer(player);
+            if (button.dataset.action === 'lock') toggleLock(player);
+        });
+
         dom.reserveInput.addEventListener('change', () => setReserve(dom.reserveInput.value));
         dom.webhookInput.addEventListener('input', () => {
             state.webhook = dom.webhookInput.value;
@@ -1088,7 +1462,14 @@
             } else if (target.matches('.legend-toggle')) {
                 const disabled = state.disabled[player];
                 if (target.checked) disabled.delete(target.dataset.legend);
-                else disabled.add(target.dataset.legend);
+                else {
+                    disabled.add(target.dataset.legend);
+                    if (state.locks[player] === target.dataset.legend) {
+                        state.locks[player] = null;
+                        persist.locks();
+                        renderResult();
+                    }
+                }
                 persist.disabled();
                 renderCardState(player);
             }
@@ -1105,6 +1486,7 @@
     // ---------------------------------------------------------------------
 
     function init() {
+        preloadPortraits();
         renderLayout();
         renderPlayerCards();
         renderResult();

@@ -13,6 +13,7 @@
     --accent-glow: rgba(255, 70, 85, 0.35);
     --discord: #5865f2;
     --ok: #3ba55d;
+    --lock: #e0a526;
 
     --radius-lg: 18px;
     --radius: 12px;
@@ -101,7 +102,7 @@ input[type="number"]:focus {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     padding: 16px 0;
 }
 
@@ -148,6 +149,21 @@ input[type="number"]:focus {
 .chip b {
     color: var(--text);
     font-weight: 600;
+}
+
+.chip-badge {
+    min-width: 18px;
+    padding: 0 5px;
+    background: var(--accent);
+    border-radius: 999px;
+    color: #fff;
+    font-size: 11px;
+    line-height: 18px;
+    text-align: center;
+}
+
+.chip-badge:empty {
+    display: none;
 }
 
 .chip b.ok {
@@ -214,7 +230,7 @@ input[type="number"]:focus {
 }
 
 .field-webhook input {
-    width: 230px;
+    width: 170px;
     text-overflow: ellipsis;
 }
 
@@ -389,6 +405,82 @@ input[type="number"]:focus {
     color: #cfd3dd;
     font-size: 11px;
     font-weight: 600;
+}
+
+/* Lock / reroll buttons on a poster */
+.pick-actions {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2;
+    display: flex;
+    gap: 6px;
+}
+
+.pick-btn {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 50%;
+    color: #fff;
+    font-size: 16px;
+    line-height: 1;
+    transition: background 0.15s, transform 0.1s;
+}
+
+.pick-btn:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+.pick-btn:active:not(:disabled) {
+    transform: scale(0.94);
+}
+
+.pick-btn:disabled {
+    cursor: default;
+    opacity: 0.35;
+}
+
+.pick-btn.on,
+.pick-btn.on:hover:not(:disabled) {
+    background: var(--lock);
+    border-color: var(--lock);
+}
+
+/* Locked legend: kept on Randomize */
+.pick.locked {
+    border-color: var(--lock);
+    box-shadow: 0 0 0 1px var(--lock);
+}
+
+/* Slot-machine animation */
+.pick.spinning img {
+    filter: blur(1.5px) brightness(0.8);
+}
+
+.pick.spinning .pick-info,
+.pick.spinning .pick-class,
+.pick.spinning .pick-actions {
+    visibility: hidden;
+}
+
+.pick.landed {
+    animation: pick-land 0.35s ease-out;
+}
+
+@keyframes pick-land {
+    0% { transform: scale(0.97); box-shadow: 0 0 0 0 var(--accent-glow); }
+    50% { transform: scale(1.02); box-shadow: 0 0 0 6px var(--accent-glow); }
+    100% { transform: none; box-shadow: none; }
+}
+
+.pick.locked.landed {
+    animation: none;
 }
 
 /* Before the first roll */
@@ -799,6 +891,210 @@ input[type="number"]:focus {
 }
 
 /* ---------------------------------------------------------------------
+   Rules window
+   --------------------------------------------------------------------- */
+
+.modal.modal-narrow {
+    width: min(560px, 100%);
+}
+
+.rule + .rule {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+}
+
+.rule-title {
+    font-weight: 700;
+}
+
+.rule .hint {
+    margin-bottom: 10px;
+}
+
+.rule-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
+
+.rule-row .hint {
+    margin-bottom: 0;
+}
+
+.rules > .hint {
+    margin-top: 18px;
+}
+
+.segmented {
+    display: inline-flex;
+    padding: 3px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+}
+
+.segmented button {
+    padding: 6px 16px;
+    background: transparent;
+    border: 0;
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.segmented button.on {
+    background: var(--line);
+    color: var(--text);
+}
+
+.class-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.class-chip {
+    position: relative;
+    cursor: pointer;
+}
+
+.class-chip input {
+    position: absolute;
+    opacity: 0;
+}
+
+.class-chip span {
+    display: block;
+    padding: 7px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.class-chip input:checked + span {
+    background: rgba(255, 70, 85, 0.14);
+    border-color: var(--accent);
+    color: var(--text);
+}
+
+.class-chip input:focus-visible + span {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------
+   Stats window — one horizontal bar per legend, one hue
+   --------------------------------------------------------------------- */
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+}
+
+.stats-player {
+    padding: 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+
+.stats-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+}
+
+.stats-name {
+    font-weight: 700;
+}
+
+.stats-total {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.stats-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.stats-row {
+    display: grid;
+    grid-template-columns: 22px 92px 1fr 28px;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 0;
+    font-size: 12px;
+}
+
+.stats-row img {
+    width: 22px;
+    height: 22px;
+    object-fit: cover;
+    border-radius: 5px;
+}
+
+.stats-legend {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.stats-bar {
+    height: 8px;
+    background: var(--line);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.stats-bar i {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 4px;
+}
+
+.stats-count {
+    color: var(--muted);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.stats-row.zero {
+    opacity: 0.45;
+}
+
+.stats-row:hover .stats-legend {
+    color: var(--text);
+}
+
+.stats-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-top: 14px;
+}
+
+.stats-foot .hint {
+    margin: 0;
+}
+
+.btn-ghost.danger {
+    border-color: var(--accent);
+    color: #ffb3ba;
+}
+
+/* ---------------------------------------------------------------------
    Discord message mock — Discord's sizes: embed images up to 400px wide
    --------------------------------------------------------------------- */
 
@@ -958,7 +1254,9 @@ input[type="number"]:focus {
     }
 
     .field-webhook {
-        flex: 1;
+        flex: 1 1 100%;
+        min-width: 0;
+        max-width: 100%;
     }
 
     .field-webhook input {
@@ -999,6 +1297,18 @@ input[type="number"]:focus {
 
     .pick-class {
         display: none;
+    }
+
+    .pick-actions {
+        top: 6px;
+        right: 6px;
+        gap: 4px;
+    }
+
+    .pick-btn {
+        width: 26px;
+        height: 26px;
+        font-size: 13px;
     }
 
     /* Randomize on its own row, Send and Reset below */
