@@ -452,6 +452,55 @@ input[type="number"]:focus {
     border-color: var(--line);
 }
 
+/* Optional Discord user ID: the player is @mentioned when the squad is sent */
+.discord-id {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 6px 0 4px;
+    padding: 0 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    color: var(--muted);
+    font-size: 12px;
+    cursor: text;
+}
+
+.discord-id:focus-within {
+    border-color: #3a4252;
+}
+
+.discord-id-at {
+    font-weight: 700;
+}
+
+.card .discord-id-input {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 0;
+    background: transparent;
+    border: 0;
+    font-size: 12px;
+}
+
+.discord-id-status {
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.discord-id.valid .discord-id-at {
+    color: #8b95ff;
+}
+
+.discord-id.invalid {
+    border-color: rgba(255, 70, 85, 0.6);
+}
+
+.discord-id.invalid .discord-id-status {
+    color: #ffb3ba;
+}
+
 .count {
     color: var(--muted);
     font-size: 12px;
@@ -794,6 +843,22 @@ input[type="number"]:focus {
     font-size: 10px;
     font-weight: 600;
     line-height: 15px;
+}
+
+.dc-mentions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 2px 0;
+}
+
+/* Discord-style mention pill */
+.dc-mention {
+    padding: 0 2px;
+    background: rgba(88, 101, 242, 0.3);
+    border-radius: 3px;
+    color: #c9cdfb;
+    font-weight: 500;
 }
 
 .dc-subtext {
